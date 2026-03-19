@@ -239,7 +239,7 @@ function GearSpecCard({ gear }: { gear: IGear }) {
                 </div>
               )}
               {/* Pedal / Otro */}
-              {(gear.type === 'pedalera' || gear.type === 'pedal' || gear.type === 'otro') && (
+              {(gear.type === 'pedalera' || gear.type === 'otro') && (
                 <div className="space-y-0.5">
                   {specs.tipo && <p className={`font-semibold ${palette.accent}`}>{specs.tipo as string}</p>}
                   {specs.controles && <p className="text-foreground/80">{specs.controles as string}</p>}

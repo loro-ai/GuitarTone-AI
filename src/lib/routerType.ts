@@ -16,6 +16,6 @@
  */
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-import type { AppRouter } from "../../guitartone-backend/src/routers";
+import type { AppRouter } from "../../../guitartone-backend/src/routers";
 
 export type { AppRouter };

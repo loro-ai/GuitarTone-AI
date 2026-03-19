@@ -15,7 +15,8 @@ export const trpc = createTRPCReact<AppRouter>();
 export function getApiUrl(): string {
   const apiUrl = import.meta.env.VITE_API_URL as string | undefined;
   if (apiUrl) {
-    return `${apiUrl}/api/trpc`;
+    const baseUrl = apiUrl.replace(/\/$/, '');
+    return `${baseUrl}/api/trpc`;
   }
   // En dev, Vite hace proxy de /api → localhost:3000
   return "/api/trpc";

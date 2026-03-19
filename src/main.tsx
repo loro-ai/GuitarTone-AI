@@ -35,12 +35,11 @@ queryClient.getMutationCache().subscribe((event) => {
 });
 
 const trpcClient = trpc.createClient({
+  transformer: superjson, // ✅ AQUÍ (fuera del link)
+
   links: [
     httpBatchLink({
-      // En producción apunta al backend en Railway.
-      // En desarrollo el proxy de Vite lo redirige a localhost:3000.
       url: getApiUrl(),
-      transformer: superjson,
       fetch(input, init) {
         return globalThis.fetch(input, {
           ...(init ?? {}),

@@ -35,11 +35,10 @@ queryClient.getMutationCache().subscribe((event) => {
 });
 
 const trpcClient = trpc.createClient({
-  transformer: superjson, // ✅ AQUÍ (fuera del link)
-
   links: [
     httpBatchLink({
       url: getApiUrl(),
+      transformer: superjson, // ✅ AQUÍ (como ya lo tenías)
       fetch(input, init) {
         return globalThis.fetch(input, {
           ...(init ?? {}),

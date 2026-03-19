@@ -40,7 +40,7 @@ export default function Hero({
       <div className="absolute inset-0 bg-gradient-to-r from-[#0f0f0f]/70 via-transparent to-transparent" />
 
       {/* Content */}
-      <div className="relative z-10 w-full mx-auto max-w-[1440px] px-4 sm:px-8 lg:px-16 pb-16 sm:pb-24 lg:pb-10">
+      <div className="relative z-10 max-sm:bottom-30 w-full mx-auto max-w-[1440px] px-4 sm:px-8 lg:px-16 pb-16 sm:pb-24 lg:pb-10 md:bottom-0 lg:bottom-0">
         <div className={`flex flex-col ${alignClass} max-w-3xl ${align === 'center' ? 'mx-auto' : ''}`}>
 
           {eyebrow && (

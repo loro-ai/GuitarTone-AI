@@ -450,7 +450,135 @@ function friendlyParam(key: string): string {
   return key; // fallback: nombre original
 }
 
-// ─── Renderizado de parámetros de un módulo de multi-efectos ─────────────────
+// ─── Helpers para el formato display del Zoom B1 ─────────────────────────────
+const ZOOM_DISPLAY_LABELS: Record<string, string> = {
+  C: 'Compressor', L: 'Limiter',
+  A: 'Auto Wah', F: 'Resonance Filter', O: 'Octave', T: 'Tremolo',
+  P: 'Phaser', R: 'Ring Mod', D: 'Defret', S: 'Slow Attack', V: 'Pedal Vox',
+  E: 'Ensemble', M: 'Mono Pitch', H: 'HPS / Hall Reverb',
+  B: 'Pitch Bend', N: 'Detune',
+  AG: 'Ampeg SVT', SB: 'Super Bass', SW: 'SWR SM-900', AC: 'Acoustic 360',
+  BM: 'Bassman', HA: 'Hartke HA3500', TE: 'Trace Elliot', TU: 'Tube Pre',
+  SA: 'SansAmp', TS: 'TS9 Tube Screamer', OD: 'ODB-3',
+  DS: 'MXR Bass D.I.+', FF: 'Fuzz Face', MS: 'Mono Syn',
+};
+
+function parseDisplay(display: string): { nombre: string; nivel: string } {
+  if (!display) return { nombre: display, nivel: '' };
+  const two = display.slice(0, 2).toUpperCase();
+  if (ZOOM_DISPLAY_LABELS[two]) return { nombre: ZOOM_DISPLAY_LABELS[two], nivel: display.slice(2) };
+  const one = display.slice(0, 1).toUpperCase();
+  return { nombre: ZOOM_DISPLAY_LABELS[one] ?? display, nivel: display.slice(1) };
+}
+
+function eqValue(v: number): string {
+  const diff = v - 13;
+  if (diff === 0) return '0';
+  return diff > 0 ? `+${diff}` : String(diff);
+}
+
+const ZOOM_SLOT_LABELS: Record<string, string> = {
+  COMP_LIMIT: 'COMP/LIMIT', EFX: 'EFX', DRIVE: 'DRIVE',
+  MOD_DELAY: 'MOD/DELAY', REV_DELAY: 'REV/DELAY',
+};
+
+// ─── Renderizado de módulos del Zoom B1 (formato display v6) ─────────────────
+function ZoomModuleBlock({ modKey, value }: { modKey: string; value: unknown }) {
+  // ZNR y PATCH_LVL: números directos
+  if (typeof value === 'number') {
+    const label = modKey === 'ZNR' ? 'Reducción de ruido' : modKey === 'PATCH_LVL' ? 'Nivel patch' : modKey;
+    return (
+      <div className="text-xs px-3 py-2 flex justify-between items-center gap-2 border-b border-border/20 last:border-0">
+        <span className="text-muted-foreground">{label}</span>
+        <span className="font-bold tabular-nums">{value}</span>
+      </div>
+    );
+  }
+  // EQ: { LO, MID, HI } en escala 8-18
+  if (modKey === 'EQ' && value !== null && typeof value === 'object') {
+    const eq = value as Record<string, number>;
+    return (
+      <div className="px-3 py-2 border-b border-border/20 last:border-0">
+        <div className="flex items-center gap-2 mb-1.5">
+          <span className="text-xs font-bold text-foreground uppercase tracking-wider w-24">EQ</span>
+        </div>
+        <div className="flex gap-4">
+          {(['LO', 'MID', 'HI'] as const).map(band => {
+            const raw = Number(eq[band] ?? 13);
+            const diff = raw - 13;
+            const color = diff > 0 ? 'text-amber-400' : diff < 0 ? 'text-blue-400' : 'text-muted-foreground';
+            return (
+              <div key={band} className="flex flex-col items-center gap-0.5">
+                <span className="text-[10px] text-muted-foreground">{band}</span>
+                <span className={`text-sm font-bold tabular-nums ${color}`}>{eqValue(raw)}</span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+  // Módulos con display/activo
+  if (value !== null && typeof value === 'object') {
+    const mod = value as Record<string, unknown>;
+    const isOff = mod.activo === false;
+    const display = mod.display as string | undefined;
+    const algoritmo = mod.algoritmo as string | undefined;
+    const parsed = display ? parseDisplay(display) : null;
+    const efectoNombre = parsed?.nombre ?? algoritmo ?? '';
+    const nivel = parsed?.nivel;
+    const slotLabel = ZOOM_SLOT_LABELS[modKey] ?? modKey;
+    return (
+      <div className={isOff ? 'opacity-40' : ''}>
+        <div className="flex items-center gap-2 px-3 py-1.5 bg-muted/30 border-b border-border/20">
+          <span className="font-bold text-foreground uppercase tracking-wider text-xs w-24 shrink-0">{slotLabel}</span>
+          <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+            isOff ? 'bg-muted text-muted-foreground' : 'bg-accent/20 text-accent'
+          }`}>{isOff ? 'OFF' : 'ON'}</span>
+          {!isOff && efectoNombre && <span className="text-xs text-muted-foreground italic">{efectoNombre}</span>}
+        </div>
+        {!isOff && (
+          <div className="flex flex-wrap gap-px px-3 py-1.5">
+            {display && (
+              <div className="flex flex-col items-center px-3 py-1 min-w-[56px]">
+                <span className="text-[10px] text-muted-foreground">Pantalla</span>
+                <span className="text-base font-black tabular-nums font-mono tracking-widest text-accent">{display}</span>
+              </div>
+            )}
+            {nivel && (
+              <div className="flex flex-col items-center px-2 py-1 min-w-[40px]">
+                <span className="text-[10px] text-muted-foreground">Nivel</span>
+                <span className="text-sm font-bold tabular-nums">{nivel}</span>
+              </div>
+            )}
+            {mod.P1 !== undefined && (
+              <div className="flex flex-col items-center px-2 py-1 min-w-[48px]">
+                <span className="text-[10px] text-muted-foreground">{modKey === 'DRIVE' ? 'Gain' : 'P1'}</span>
+                <span className="text-sm font-bold tabular-nums">{String(mod.P1)}</span>
+              </div>
+            )}
+            {mod.P2 !== undefined && (
+              <div className="flex flex-col items-center px-2 py-1 min-w-[56px]">
+                <span className="text-[10px] text-muted-foreground">
+                  {modKey === 'DRIVE' ? 'Mix' : modKey === 'MOD_DELAY' ? 'Rate/Time' : 'Decay/Time'}
+                </span>
+                <span className="text-sm font-bold tabular-nums">{String(mod.P2)}</span>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  }
+  return (
+    <div className="text-xs px-3 py-2 flex justify-between items-center gap-2 border-b border-border/20 last:border-0">
+      <span className="text-muted-foreground">{friendlyParam(modKey)}</span>
+      <span className="font-bold tabular-nums">{String(value)}</span>
+    </div>
+  );
+}
+
+// ─── Renderizado legacy de parámetros (para equipos sin formato Zoom B1) ─────
 function ModuleParamBlock({ modKey, value }: { modKey: string; value: unknown }) {
   const isModule = value !== null && typeof value === "object" && !Array.isArray(value);
   if (!isModule) {
@@ -1216,40 +1344,64 @@ export default function WizardApp() {
                       <CardHeader className="pb-2">
                         <div className="flex items-start justify-between gap-2">
                           <div>
-                            <CardTitle className="text-base">{preset.nombre}</CardTitle>
+                            {/* tag + etiqueta */}
+                            <div className="flex items-center gap-2 mb-1">
+                              {preset.tag && (
+                                <span className={`text-[10px] px-2 py-0.5 rounded font-bold uppercase tracking-wide ${bankBadgeColors[idx % bankBadgeColors.length]}`}>
+                                  {preset.tag}
+                                </span>
+                              )}
+                              <CardTitle className="text-base">{preset.etiqueta ?? preset.nombre}</CardTitle>
+                            </div>
+                            {/* descripcion_corta */}
+                            {preset.descripcion_corta && (
+                              <p className="text-xs text-accent font-medium">{preset.descripcion_corta}</p>
+                            )}
                             {preset.momento_cancion && (
                               <CardDescription className="text-xs mt-0.5">
                                 {preset.momento_cancion}
                               </CardDescription>
                             )}
                           </div>
-                          <span className={`text-xs px-2 py-1 rounded-full shrink-0 font-bold ${bankBadgeColors[idx % bankBadgeColors.length]}`}>
+                          <span className={`text-xs px-2 py-1 rounded-full shrink-0 font-bold font-mono ${bankBadgeColors[idx % bankBadgeColors.length]}`}>
                             {preset.nombre}
                           </span>
                         </div>
                       </CardHeader>
                       <CardContent className="space-y-3">
-                        <p className="text-sm text-muted-foreground">{preset.descripcion}</p>
+                        {/* explicacion (nuevo) o descripcion (legacy) */}
+                        <p className="text-sm text-muted-foreground">
+                          {preset.explicacion ?? preset.descripcion}
+                        </p>
 
                         {/* Configuración de cada pedal/multi-efectos */}
                         {preset.configuracion && preset.configuracion.length > 0 && (
                           <div className="space-y-3">
-                            {preset.configuracion.map((gc: GearConfig, gi: number) => (
-                              <div key={gi} className="rounded-lg border border-border/60 overflow-hidden">
-                                <div className="flex items-center gap-2 px-3 py-2 bg-violet-500/10 border-b border-border/40">
-                                  <SlidersHorizontal className="w-3 h-3 text-violet-400" />
-                                  <span className="text-xs font-bold text-violet-400 uppercase tracking-wide">
-                                    {gc.gearTipo}
-                                  </span>
-                                  <span className="text-xs font-semibold text-foreground">{gc.gearNombre}</span>
+                            {preset.configuracion.map((gc, gi: number) => {
+                              // Detectar si es formato modulos (Zoom B1 v6) o parametros (legacy)
+                              const isZoomFormat = 'modulos' in gc && gc.modulos !== undefined;
+                              return (
+                                <div key={gi} className="rounded-lg border border-border/60 overflow-hidden">
+                                  <div className="flex items-center gap-2 px-3 py-2 bg-violet-500/10 border-b border-border/40">
+                                    <SlidersHorizontal className="w-3 h-3 text-violet-400" />
+                                    <span className="text-xs font-bold text-violet-400 uppercase tracking-wide">
+                                      {gc.gearTipo}
+                                    </span>
+                                    <span className="text-xs font-semibold text-foreground">{gc.gearNombre}</span>
+                                  </div>
+                                  <div className="divide-y divide-border/20">
+                                    {isZoomFormat
+                                      ? Object.entries((gc as { modulos: Record<string, unknown> }).modulos).map(([k, v]) => (
+                                          <ZoomModuleBlock key={k} modKey={k} value={v} />
+                                        ))
+                                      : Object.entries((gc as GearConfig).parametros || {}).map(([k, v]) => (
+                                          <ModuleParamBlock key={k} modKey={k} value={v} />
+                                        ))
+                                    }
+                                  </div>
                                 </div>
-                                <div className="divide-y divide-border/20">
-                                  {Object.entries(gc.parametros || {}).map(([k, v]) => (
-                                    <ModuleParamBlock key={k} modKey={k} value={v} />
-                                  ))}
-                                </div>
-                              </div>
-                            ))}
+                              );
+                            })}
                           </div>
                         )}
 
@@ -1315,3 +1467,4 @@ export default function WizardApp() {
     </>
   );
 }
+

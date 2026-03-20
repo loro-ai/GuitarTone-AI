@@ -51,12 +51,45 @@ export interface GearConfig {
   parametros: Record<string, unknown>;
 }
 
+// Módulo del Zoom B1 con formato de pantalla (v6)
+export interface ZoomB1Module {
+  activo: boolean;
+  display?: string;        // código de pantalla: "A7", "FF", "C5", etc.
+  P1?: number;             // solo DRIVE: Gain 0-30
+  P2?: number | string;    // DRIVE: Mix 0-10 | MOD_DELAY: Rate/Time/Key
+  algoritmo?: string;      // legacy — mantener por compatibilidad
+  [key: string]: unknown;
+}
+
+export interface ZoomB1Modulos {
+  COMP_LIMIT: ZoomB1Module;
+  EFX:        ZoomB1Module;
+  DRIVE:      ZoomB1Module;
+  EQ:         { LO: number; MID: number; HI: number };
+  ZNR:        number;
+  MOD_DELAY:  ZoomB1Module;
+  REV_DELAY:  ZoomB1Module;
+  PATCH_LVL:  number;
+}
+
+export interface GearConfigProcessador {
+  gearId: string;
+  gearNombre: string;
+  gearTipo: 'procesador' | 'pedalera';
+  modulos: ZoomB1Modulos;
+}
+
 export interface PresetConfig {
   nombre: string;
+  tag?: string;
+  etiqueta?: string;
+  descripcion_corta?: string;
   momento_cancion: string;
+  efecto_principal?: string;
   descripcion: string;
+  explicacion?: string;
   /** Configuración por dispositivo — un bloque por cada equipo del usuario */
-  configuracion: GearConfig[];
+  configuracion: Array<GearConfig | GearConfigProcessador>;
   nota_tecnica?: string;
   consejos?: string[];
 }

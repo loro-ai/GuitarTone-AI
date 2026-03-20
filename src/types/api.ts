@@ -70,6 +70,7 @@ export interface ZoomB1Modulos {
   MOD_DELAY:  ZoomB1Module;
   REV_DELAY:  ZoomB1Module;
   PATCH_LVL:  number;
+  [key: string]: unknown;
 }
 
 export interface GearConfigProcessador {

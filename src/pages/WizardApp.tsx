@@ -1,4 +1,5 @@
 import { useState, useEffect, type ReactNode } from "react";
+import React from "react";
 import { createPortal } from "react-dom";
 import { useAuth } from "@/_core/hooks/useAuth";
 import Navbar from '../templates/fender-system/components/Navbar';
@@ -613,6 +614,191 @@ function ModuleParamBlock({ modKey, value }: { modKey: string; value: unknown })
                 <span className="text-xs font-bold tabular-nums">{String(v)}</span>
               </div>
             ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── TAG colors ──────────────────────────────────────────────────────────────
+const TAG_STYLES: Record<string, { badge: string; border: string; bg: string }> = {
+  RIFF:   { badge: 'bg-amber-500/20 text-amber-400 border-amber-500/30',   border: 'border-amber-500/30',  bg: 'bg-amber-900/10'  },
+  INTRO:  { badge: 'bg-amber-500/20 text-amber-400 border-amber-500/30',   border: 'border-amber-500/30',  bg: 'bg-amber-900/10'  },
+  VERSO:  { badge: 'bg-amber-500/20 text-amber-400 border-amber-500/30',   border: 'border-amber-500/30',  bg: 'bg-amber-900/10'  },
+  CORO:   { badge: 'bg-red-500/20 text-red-400 border-red-500/30',         border: 'border-red-500/30',    bg: 'bg-red-900/10'    },
+  SOLO:   { badge: 'bg-blue-500/20 text-blue-400 border-blue-500/30',      border: 'border-blue-500/30',   bg: 'bg-blue-900/10'   },
+  PUENTE: { badge: 'bg-violet-500/20 text-violet-400 border-violet-500/30', border: 'border-violet-500/30', bg: 'bg-violet-900/10' },
+};
+const DEFAULT_TAG_STYLE = { badge: 'bg-zinc-500/20 text-zinc-400 border-zinc-500/30', border: 'border-zinc-500/30', bg: 'bg-zinc-900/10' };
+
+// ─── EQ Bar visual ────────────────────────────────────────────────────────────
+function EQBars({ eq }: { eq: Record<string, number> }) {
+  const bands = [
+    { key: 'LO',  label: 'LO',  val: Number(eq.LO  ?? 13) },
+    { key: 'MID', label: 'MID', val: Number(eq.MID ?? 13) },
+    { key: 'HI',  label: 'HI',  val: Number(eq.HI  ?? 13) },
+  ];
+  return (
+    <div className="flex items-center gap-3">
+      <div className="flex items-end gap-1.5 h-5">
+        {bands.map(b => {
+          const diff = b.val - 13;
+          const h = Math.abs(diff) * 2.5 + 2;
+          const color = diff > 0 ? 'bg-amber-400' : diff < 0 ? 'bg-blue-400' : 'bg-zinc-600';
+          return (
+            <div key={b.key} className="flex flex-col items-center gap-0.5">
+              <div className={`w-2 rounded-sm ${color}`} style={{ height: `${h}px` }} />
+            </div>
+          );
+        })}
+      </div>
+      <span className="text-xs text-muted-foreground tabular-nums">
+        {bands.map(b => {
+          const d = b.val - 13;
+          return d === 0 ? '0' : d > 0 ? `+${d}` : String(d);
+        }).join(' · ')}
+      </span>
+    </div>
+  );
+}
+
+// ─── Preset Card — diseño tipo tabla ─────────────────────────────────────────
+function PresetCard({ preset, idx }: { preset: PresetConfig; idx: number }) {
+  const tag = preset.tag ?? '';
+  const style = TAG_STYLES[tag] ?? DEFAULT_TAG_STYLE;
+
+  // Extraer modulos del primer item de configuracion
+  const gc = preset.configuracion?.[0];
+  const modulos = gc && 'modulos' in gc ? (gc as { modulos: Record<string, unknown> }).modulos : null;
+
+  // Filas de la tabla de módulos
+  const rows: { label: string; content: React.ReactNode }[] = [];
+
+  if (modulos) {
+    const SLOT_ORDER = ['COMP_LIMIT','EFX','DRIVE','EQ','ZNR','MOD_DELAY','REV_DELAY','PATCH_LVL'];
+    const SLOT_LABELS: Record<string, string> = {
+      COMP_LIMIT: 'COMP/LIMIT', EFX: 'EFX', DRIVE: 'DRIVE',
+      EQ: 'EQ', ZNR: 'ZNR', MOD_DELAY: 'MOD/DELAY',
+      REV_DELAY: 'REV/DELAY', PATCH_LVL: 'PATCH LVL',
+    };
+
+    SLOT_ORDER.forEach(key => {
+      const val = modulos[key];
+      if (val === undefined) return;
+      const label = SLOT_LABELS[key] ?? key;
+
+      // ZNR y PATCH_LVL — número
+      if (typeof val === 'number') {
+        rows.push({ label, content: <span className="font-bold tabular-nums text-foreground">{val}</span> });
+        return;
+      }
+
+      // EQ
+      if (key === 'EQ' && val !== null && typeof val === 'object') {
+        rows.push({ label, content: <EQBars eq={val as Record<string, number>} /> });
+        return;
+      }
+
+      // Módulos con display/activo
+      if (val !== null && typeof val === 'object') {
+        const mod = val as Record<string, unknown>;
+        const isOff = mod.activo === false;
+
+        if (isOff) {
+          rows.push({ label, content: <span className="text-muted-foreground text-xs italic">— off —</span> });
+          return;
+        }
+
+        const display = mod.display as string | undefined;
+        const p1 = mod.P1 as number | undefined;
+        const p2 = mod.P2 as number | string | undefined;
+
+        const parsed = display ? parseDisplay(display) : null;
+        const efectoNombre = parsed?.nombre ?? (mod.algoritmo as string) ?? '';
+
+        rows.push({
+          label,
+          content: (
+            <div className="flex items-center gap-2 flex-wrap">
+              {display && (
+                <span className="font-black font-mono text-sm tracking-widest text-accent bg-accent/10 px-2 py-0.5 rounded">
+                  {display}
+                </span>
+              )}
+              {efectoNombre && (
+                <span className="text-xs text-muted-foreground">{efectoNombre}</span>
+              )}
+              {p1 !== undefined && (
+                <span className="text-xs text-foreground/80">
+                  {key === 'DRIVE' ? `Gain ${p1}` : `P1 ${p1}`}
+                </span>
+              )}
+              {p2 !== undefined && (
+                <span className="text-xs text-foreground/80">
+                  {key === 'DRIVE' ? `· Mix ${p2}` : key === 'MOD_DELAY' ? `· ${p2}` : `· ${p2}`}
+                </span>
+              )}
+            </div>
+          ),
+        });
+      }
+    });
+  }
+
+  return (
+    <div className={`rounded-xl border overflow-hidden ${style.border} ${style.bg}`}>
+      {/* Header */}
+      <div className="px-4 pt-3 pb-2 border-b border-border/30">
+        <div className="flex items-start justify-between gap-2">
+          <div className="space-y-0.5">
+            <span className={`text-[10px] px-2 py-0.5 rounded font-bold uppercase tracking-widest border ${style.badge}`}>
+              {tag || `Preset ${idx + 1}`}
+            </span>
+            <p className="font-bold text-foreground text-sm leading-tight mt-1">
+              {preset.etiqueta ?? preset.nombre}
+            </p>
+            {preset.descripcion_corta && (
+              <p className="text-xs text-muted-foreground">{preset.descripcion_corta}</p>
+            )}
+          </div>
+          {preset.momento_cancion && (
+            <span className="text-[10px] text-muted-foreground shrink-0 mt-1">{preset.momento_cancion}</span>
+          )}
+        </div>
+      </div>
+
+      {/* Tabla de módulos */}
+      {rows.length > 0 && (
+        <div className="divide-y divide-border/20">
+          {rows.map((row, i) => (
+            <div key={i} className="flex items-center justify-between px-4 py-2 gap-4">
+              <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground w-20 shrink-0">
+                {row.label}
+              </span>
+              <div className="flex-1 flex justify-end">{row.content}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Explicación */}
+      {(preset.explicacion ?? preset.descripcion) && (
+        <div className="px-4 py-3 border-t border-border/30 bg-black/20">
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            <span className="font-semibold text-foreground">{preset.efecto_principal ?? preset.etiqueta}: </span>
+            {preset.explicacion ?? preset.descripcion}
+          </p>
+        </div>
+      )}
+
+      {/* Consejos */}
+      {preset.consejos && preset.consejos.length > 0 && (
+        <div className="px-4 py-2 border-t border-border/20 space-y-0.5">
+          {preset.consejos.map((c, i) => (
+            <p key={i} className="text-xs text-muted-foreground flex gap-1.5">
+              <span className="text-amber-400 shrink-0">›</span>{c}
+            </p>
+          ))}
         </div>
       )}
     </div>
@@ -1328,108 +1514,11 @@ export default function WizardApp() {
                   <h3 className="text-xs font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-1.5">
                     <SlidersHorizontal className="w-3.5 h-3.5" /> Presets por sección
                   </h3>
-                  {(() => {
-                    const bankColors = [
-                      "border-violet-500/40 bg-violet-900/10",
-                      "border-blue-500/40 bg-blue-900/10",
-                      "border-amber-500/40 bg-amber-900/10",
-                    ];
-                    const bankBadgeColors = [
-                      "bg-violet-500/20 text-violet-300",
-                      "bg-blue-500/20 text-blue-300",
-                      "bg-amber-500/20 text-amber-300",
-                    ];
-                    return generatedPresets.presetsData.map((preset: PresetConfig, idx: number) => (
-                    <Card key={idx} className={bankColors[idx % bankColors.length]}>
-                      <CardHeader className="pb-2">
-                        <div className="flex items-start justify-between gap-2">
-                          <div>
-                            {/* tag + etiqueta */}
-                            <div className="flex items-center gap-2 mb-1">
-                              {preset.tag && (
-                                <span className={`text-[10px] px-2 py-0.5 rounded font-bold uppercase tracking-wide ${bankBadgeColors[idx % bankBadgeColors.length]}`}>
-                                  {preset.tag}
-                                </span>
-                              )}
-                              <CardTitle className="text-base">{preset.etiqueta ?? preset.nombre}</CardTitle>
-                            </div>
-                            {/* descripcion_corta */}
-                            {preset.descripcion_corta && (
-                              <p className="text-xs text-accent font-medium">{preset.descripcion_corta}</p>
-                            )}
-                            {preset.momento_cancion && (
-                              <CardDescription className="text-xs mt-0.5">
-                                {preset.momento_cancion}
-                              </CardDescription>
-                            )}
-                          </div>
-                          <span className={`text-xs px-2 py-1 rounded-full shrink-0 font-bold font-mono ${bankBadgeColors[idx % bankBadgeColors.length]}`}>
-                            {preset.nombre}
-                          </span>
-                        </div>
-                      </CardHeader>
-                      <CardContent className="space-y-3">
-                        {/* explicacion (nuevo) o descripcion (legacy) */}
-                        <p className="text-sm text-muted-foreground">
-                          {preset.explicacion ?? preset.descripcion}
-                        </p>
-
-                        {/* Configuración de cada pedal/multi-efectos */}
-                        {preset.configuracion && preset.configuracion.length > 0 && (
-                          <div className="space-y-3">
-                            {preset.configuracion.map((gc, gi: number) => {
-                              // Detectar si es formato modulos (Zoom B1 v6) o parametros (legacy)
-                              const isZoomFormat = 'modulos' in gc && gc.modulos !== undefined;
-                              return (
-                                <div key={gi} className="rounded-lg border border-border/60 overflow-hidden">
-                                  <div className="flex items-center gap-2 px-3 py-2 bg-violet-500/10 border-b border-border/40">
-                                    <SlidersHorizontal className="w-3 h-3 text-violet-400" />
-                                    <span className="text-xs font-bold text-violet-400 uppercase tracking-wide">
-                                      {gc.gearTipo}
-                                    </span>
-                                    <span className="text-xs font-semibold text-foreground">{gc.gearNombre}</span>
-                                  </div>
-                                  <div className="divide-y divide-border/20">
-                                    {isZoomFormat
-                                      ? Object.entries((gc as { modulos: Record<string, unknown> }).modulos).map(([k, v]) => (
-                                          <ZoomModuleBlock key={k} modKey={k} value={v} />
-                                        ))
-                                      : Object.entries((gc as GearConfig).parametros || {}).map(([k, v]) => (
-                                          <ModuleParamBlock key={k} modKey={k} value={v} />
-                                        ))
-                                    }
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        )}
-
-                        {/* Nota técnica */}
-                        {preset.nota_tecnica && (
-                          <div className="p-3 bg-accent/10 border border-accent/30 rounded-lg">
-                            <p className="text-xs font-semibold text-accent mb-1">Nota técnica</p>
-                            <p className="text-sm">{preset.nota_tecnica}</p>
-                          </div>
-                        )}
-
-                        {/* Consejos */}
-                        {preset.consejos && preset.consejos.length > 0 && (
-                          <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg">
-                            <p className="text-xs font-semibold text-amber-400 mb-1.5">Consejos de ajuste</p>
-                            <ul className="space-y-1">
-                              {preset.consejos.map((c, i) => (
-                                <li key={i} className="text-xs text-muted-foreground flex gap-1.5">
-                                  <span className="text-amber-400 shrink-0">•</span>{c}
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                        )}
-                      </CardContent>
-                    </Card>
-                  ));
-                  })()}
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                    {generatedPresets.presetsData.map((preset: PresetConfig, idx: number) => (
+                      <PresetCard key={idx} preset={preset} idx={idx} />
+                    ))}
+                  </div>
                 </section>
               ) : (
                 <p className="text-muted-foreground text-sm text-center py-4">No se generaron presets</p>
@@ -1467,4 +1556,3 @@ export default function WizardApp() {
     </>
   );
 }
-

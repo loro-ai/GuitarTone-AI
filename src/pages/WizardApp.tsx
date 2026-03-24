@@ -2,6 +2,7 @@ import { useState, useEffect, type ReactNode } from "react";
 import React from "react";
 import { createPortal } from "react-dom";
 import { useAuth } from "@/_core/hooks/useAuth";
+import { useLocation } from "wouter";
 import Navbar from '../templates/fender-system/components/Navbar';
 import { Button } from "@/components/ui/button";
 import {
@@ -28,6 +29,7 @@ import {
   ChevronLeft,
   CheckCircle2,
   Trash2,
+  Pencil,
   Guitar,
   Zap,
   Speaker,
@@ -39,6 +41,7 @@ import {
 import { toast } from "sonner";
 import type { MusicBrainzResult, PresetConfig, GearConfig, IGear, IGearModule } from "@/types/api";
 import PresetLoader from "@/components/PresetLoader";
+import { AMPS_REF, PEDALS_REF, PROCESSORS_REF } from "@/const/gear-library";
 
 type Step = 1 | 2 | 3 | 4;
 
@@ -46,6 +49,22 @@ const WIZARD_NAV_LINKS = [
   { label: 'Inicio', href: '/' },
   { label: 'Mis presets', href: '/profile' },
 ]
+
+// ─── Librería de opciones de equipos ─────────────────────────────────────────
+
+type GearType = "pedalera" | "amplificador" | "guitarra" | "procesador" | "otro";
+
+interface LibraryOption { key: string; label: string; brand: string; model: string }
+
+function getLibraryOptions(type: GearType): LibraryOption[] {
+  if (type === 'amplificador')
+    return AMPS_REF.map(a => ({ key: `${a.marca}||${a.modelo}`, label: `${a.modelo} — ${a.marca}`, brand: a.marca, model: a.modelo }));
+  if (type === 'procesador')
+    return PROCESSORS_REF.map(p => ({ key: `${p.marca}||${p.modelo}`, label: `${p.modelo} — ${p.marca}`, brand: p.marca, model: p.modelo }));
+  if (type === 'pedalera' || type === 'otro')
+    return PEDALS_REF.map(p => ({ key: `${p.marca}||${p.modelo}`, label: `${p.modelo} — ${p.marca}`, brand: p.marca, model: p.modelo }));
+  return [];
+}
 
 // ─── Componente resumen de investigación de tono ──────────────────────────────
 
@@ -217,12 +236,10 @@ function GearSpecCard({ gear }: { gear: IGear }) {
           )}
           {!specsQuery.isLoading && specs && (
             <>
-              {/* Procesador / Pedalera */}
-              {(gear.type === 'procesador' || gear.type === 'pedalera') && (
+              {/* Procesador — detectado dinámicamente por presencia de procId */}
+              {specs.procId != null && (
                 <div className="space-y-0.5">
-                  {specs.procId && (
-                    <p className={`font-semibold ${palette.accent}`}>{specs.procId as string}{specs.arquitectura ? ` · ${specs.arquitectura as string}` : ''}</p>
-                  )}
+                  <p className={`font-semibold ${palette.accent}`}>{specs.procId as string}{specs.arquitectura ? ` · ${specs.arquitectura as string}` : ''}</p>
                   {specs.totalAlgoritmos != null && (
                     <p className="text-foreground/80">{specs.totalAlgoritmos as number} algoritmos disponibles</p>
                   )}
@@ -232,7 +249,7 @@ function GearSpecCard({ gear }: { gear: IGear }) {
                 </div>
               )}
               {/* Amplificador */}
-              {gear.type === 'amplificador' && (
+              {specs.procId == null && gear.type === 'amplificador' && (
                 <div className="space-y-0.5">
                   {specs.controles && <p className="text-foreground/80">{specs.controles as string}</p>}
                   {specs.rango && <p className="text-muted-foreground">Rango: {specs.rango as string}</p>}
@@ -240,7 +257,7 @@ function GearSpecCard({ gear }: { gear: IGear }) {
                 </div>
               )}
               {/* Pedal / Otro */}
-              {(gear.type === 'pedalera' || gear.type === 'otro') && (
+              {specs.procId == null && gear.type !== 'amplificador' && (
                 <div className="space-y-0.5">
                   {specs.tipo && <p className={`font-semibold ${palette.accent}`}>{specs.tipo as string}</p>}
                   {specs.controles && <p className="text-foreground/80">{specs.controles as string}</p>}
@@ -366,21 +383,21 @@ function BaseGearSpecCard({ gc, allGear }: { gc: GearConfig; allGear: IGear[] })
       {specsQuery.isLoading && <p className="text-muted-foreground italic">Cargando especificaciones...</p>}
       {specs && (
         <>
-          {(gc.gearTipo === 'procesador' || gc.gearTipo === 'pedalera') && (
+          {specs.procId != null && (
             <>
-              {specs.procId && <p className="text-blue-400 font-semibold">{specs.procId}{specs.arquitectura ? ` · ${specs.arquitectura}` : ''}</p>}
+              <p className="text-blue-400 font-semibold">{specs.procId}{specs.arquitectura ? ` · ${specs.arquitectura}` : ''}</p>
               {specs.totalAlgoritmos != null && <p className="text-foreground/80">{specs.totalAlgoritmos} algoritmos</p>}
               {specs.slotsSummary && <p className="text-muted-foreground">{specs.slotsSummary}</p>}
             </>
           )}
-          {gc.gearTipo === 'amplificador' && (
+          {specs.procId == null && gc.gearTipo === 'amplificador' && (
             <>
               {specs.controles && <p className="text-foreground/80">{specs.controles}</p>}
               {specs.rango && <p className="text-muted-foreground">Rango: {specs.rango}</p>}
               {specs.notas && <p className="text-muted-foreground">{String(specs.notas).slice(0, 100)}{String(specs.notas).length > 100 ? '…' : ''}</p>}
             </>
           )}
-          {gc.gearTipo !== 'procesador' && gc.gearTipo !== 'pedalera' && gc.gearTipo !== 'amplificador' && (
+          {specs.procId == null && gc.gearTipo !== 'amplificador' && (
             <>
               {specs.tipo && <p className="text-emerald-400 font-semibold">{specs.tipo}</p>}
               {specs.controles && <p className="text-foreground/80">{specs.controles}</p>}
@@ -743,6 +760,36 @@ function PresetCard({ preset, idx }: { preset: PresetConfig; idx: number }) {
         });
       }
     });
+  } else if (gc && 'parametros' in gc && gc.parametros) {
+    // Renderizado genérico para equipos sin formato Zoom B1
+    const params = gc.parametros as Record<string, unknown>;
+    Object.entries(params).forEach(([k, v]) => {
+      if (v === undefined || v === null) return;
+      if (typeof v === 'object' && !Array.isArray(v)) {
+        const sub = v as Record<string, unknown>;
+        const estado = sub.estado as string | undefined;
+        const isOff = estado === 'OFF';
+        rows.push({
+          label: friendlyParam(k),
+          content: isOff
+            ? <span className="text-muted-foreground text-xs italic">— off —</span>
+            : (
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {estado && <span className="text-[10px] font-bold bg-accent/20 text-accent px-1.5 py-0.5 rounded">{estado}</span>}
+                {sub.tipo != null && <span className="text-xs text-muted-foreground italic">{String(sub.tipo)}</span>}
+                {Object.entries(sub).filter(([ek]) => ek !== 'estado' && ek !== 'tipo').map(([ek, ev]) => (
+                  <span key={ek} className="text-xs text-foreground/80">{friendlyParam(ek)}: <strong>{String(ev)}</strong></span>
+                ))}
+              </div>
+            ),
+        });
+      } else {
+        rows.push({
+          label: friendlyParam(k),
+          content: <span className="font-bold tabular-nums text-foreground">{String(v)}</span>,
+        });
+      }
+    });
   }
 
   return (
@@ -806,7 +853,8 @@ function PresetCard({ preset, idx }: { preset: PresetConfig; idx: number }) {
 }
 
 export default function WizardApp() {
-  const { user } = useAuth();
+  const { user, logout } = useAuth({ redirectOnUnauthenticated: true, redirectPath: '/' });
+  const [, navigate] = useLocation();
   const utils = trpc.useUtils();
 
   const [step, setStep] = useState<Step>(1);
@@ -826,11 +874,11 @@ export default function WizardApp() {
 
   // Paso 2 — equipo
   const [gearName, setGearName] = useState("");
-  const [gearType, setGearType] = useState<
-    "pedalera" | "amplificador" | "guitarra" | "procesador" | "otro"
-  >("pedalera");
+  const [gearType, setGearType] = useState<GearType>("pedalera");
   const [gearBrand, setGearBrand] = useState("");
   const [gearModel, setGearModel] = useState("");
+  const [selectedModelKey, setSelectedModelKey] = useState<string>("");
+  const [editingGearId, setEditingGearId] = useState<string | null>(null);
   // FIX: gearIds son strings (ObjectIds de MongoDB)
   const [selectedGearIds, setSelectedGearIds] = useState<string[]>([]);
 
@@ -865,8 +913,38 @@ export default function WizardApp() {
   const generatePresets = trpc.presets.generate.useMutation();
   const generatePreset = trpc.songs.generatePreset.useMutation();
   const createGear = trpc.gear.create.useMutation();
+  const updateGear = trpc.gear.update.useMutation();
+  const deleteGear = trpc.gear.delete.useMutation();
   // FIX: la query de equipo se habilita solo si el usuario está autenticado
   const userGear = trpc.gear.list.useQuery(undefined, { enabled: !!user });
+
+  // ─── Sync: selectedModelKey → brand/model/name ────────────────────────────
+
+  useEffect(() => {
+    if (!selectedModelKey) return;
+    const [marca, modelo] = selectedModelKey.split('||', 2);
+    setGearBrand(marca ?? '');
+    setGearModel(modelo ?? '');
+    setGearName(prev => prev || (modelo ?? ''));
+  }, [selectedModelKey]);
+
+  // ─── Helpers de formulario de equipo ──────────────────────────────────────
+
+  const resetGearForm = () => {
+    setGearName('');
+    setGearBrand('');
+    setGearModel('');
+    setSelectedModelKey('');
+    setEditingGearId(null);
+  };
+
+  const handleGearTypeChange = (v: GearType) => {
+    setGearType(v);
+    setSelectedModelKey('');
+    setGearBrand('');
+    setGearModel('');
+    setGearName('');
+  };
 
   // ─── Handlers ─────────────────────────────────────────────────────────────
 
@@ -895,23 +973,55 @@ export default function WizardApp() {
       return;
     }
     try {
-      const newGear = await createGear.mutateAsync({
-        name: gearName,
-        type: gearType,
-        brand: gearBrand || undefined,
-        model: gearModel || undefined,
-      });
-      // FIX: invalidar cache para que userGear.data se actualice inmediatamente
-      await utils.gear.list.invalidate();
-      // FIX: el _id es string (ObjectId de MongoDB)
-      setSelectedGearIds((prev) => [...prev, String(newGear._id)]);
-      setGearName("");
-      setGearBrand("");
-      setGearModel("");
-      toast.success(`${gearName} agregado`);
+      if (editingGearId) {
+        await updateGear.mutateAsync({
+          id: editingGearId,
+          data: { name: gearName, type: gearType, brand: gearBrand || undefined, model: gearModel || undefined },
+        });
+        await utils.gear.list.invalidate();
+        toast.success(`${gearName} actualizado`);
+      } else {
+        const newGear = await createGear.mutateAsync({
+          name: gearName,
+          type: gearType,
+          brand: gearBrand || undefined,
+          model: gearModel || undefined,
+        });
+        await utils.gear.list.invalidate();
+        setSelectedGearIds((prev) => [...prev, String(newGear._id)]);
+        toast.success(`${gearName} agregado`);
+      }
+      resetGearForm();
+      setShowAddForm(false);
     } catch {
-      toast.error("Error al agregar equipo");
+      toast.error(editingGearId ? "Error al actualizar equipo" : "Error al agregar equipo");
     }
+  };
+
+  const handleDeleteGear = async (id: string, name: string) => {
+    try {
+      await deleteGear.mutateAsync({ id });
+      await utils.gear.list.invalidate();
+      setSelectedGearIds(prev => prev.filter(gid => gid !== id));
+      toast.success(`${name} eliminado`);
+    } catch {
+      toast.error("Error al eliminar equipo");
+    }
+  };
+
+  const handleEditGear = (g: IGear) => {
+    setEditingGearId(String(g._id));
+    setGearType(g.type as GearType);
+    setGearBrand(g.brand ?? '');
+    setGearModel(g.model ?? '');
+    setGearName(g.name);
+    if (g.brand && g.model) setSelectedModelKey(`${g.brand}||${g.model}`);
+    setShowAddForm(true);
+  };
+
+  const handleSalir = async () => {
+    await logout();
+    navigate('/');
   };
 
   const handleGeneratePresets = async () => {
@@ -1211,35 +1321,49 @@ export default function WizardApp() {
                         const isSelected = selectedGearIds.includes(gId);
                         const palette = GEAR_PALETTE[g.type] ?? GEAR_PALETTE.otro;
                         return (
-                          <button
-                            key={gId}
-                            type="button"
-                            onClick={() =>
-                              setSelectedGearIds((prev) =>
-                                isSelected
-                                  ? prev.filter((id) => id !== gId)
-                                  : [...prev, gId]
-                              )
-                            }
-                            className={`w-full text-left p-3 rounded-lg border transition-all flex items-center gap-3 ${
-                              isSelected
-                                ? "border-accent bg-accent/10 shadow-sm"
-                                : "border-border/50 bg-card/40 hover:border-border"
-                            }`}
-                          >
-                            <span className={`shrink-0 ${palette.accent}`}>{palette.icon}</span>
-                            <div className="flex-1 min-w-0">
-                              <p className="font-medium text-sm truncate">{g.name}</p>
-                              <p className="text-xs text-muted-foreground">
-                                {[g.brand, g.model].filter(Boolean).join(" ")} · {g.type}
-                              </p>
-                            </div>
-                            <div className={`w-5 h-5 rounded-full border-2 shrink-0 flex items-center justify-center transition-colors ${
-                              isSelected ? "border-accent bg-accent" : "border-border/60"
-                            }`}>
-                              {isSelected && <CheckCircle2 className="w-3 h-3 text-accent-foreground" />}
-                            </div>
-                          </button>
+                          <div key={gId} className={`rounded-lg border transition-all flex items-center gap-2 pr-2 ${
+                            isSelected ? "border-accent bg-accent/10 shadow-sm" : "border-border/50 bg-card/40"
+                          }`}>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setSelectedGearIds((prev) =>
+                                  isSelected ? prev.filter((id) => id !== gId) : [...prev, gId]
+                                )
+                              }
+                              className="flex-1 text-left p-3 flex items-center gap-3"
+                            >
+                              <span className={`shrink-0 ${palette.accent}`}>{palette.icon}</span>
+                              <div className="flex-1 min-w-0">
+                                <p className="font-medium text-sm truncate">{g.name}</p>
+                                <p className="text-xs text-muted-foreground">
+                                  {[g.brand, g.model].filter(Boolean).join(" ")} · {g.type}
+                                </p>
+                              </div>
+                              <div className={`w-5 h-5 rounded-full border-2 shrink-0 flex items-center justify-center transition-colors ${
+                                isSelected ? "border-accent bg-accent" : "border-border/60"
+                              }`}>
+                                {isSelected && <CheckCircle2 className="w-3 h-3 text-accent-foreground" />}
+                              </div>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleEditGear(g)}
+                              className="p-1.5 text-muted-foreground hover:text-foreground transition-colors"
+                              title="Editar"
+                            >
+                              <Pencil className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteGear(gId, g.name)}
+                              disabled={deleteGear.isPending}
+                              className="p-1.5 text-muted-foreground hover:text-destructive transition-colors"
+                              title="Eliminar"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
                         );
                       })}
                     </div>
@@ -1250,79 +1374,102 @@ export default function WizardApp() {
                   </p>
                 )}
 
-                {/* ── Agregar nuevo equipo ── */}
+                {/* ── Agregar / Editar equipo ── */}
                 <div className="border border-border/40 rounded-lg overflow-hidden">
                   <button
                     type="button"
-                    onClick={() => setShowAddForm((v) => !v)}
+                    onClick={() => {
+                      if (showAddForm && editingGearId) { resetGearForm(); }
+                      setShowAddForm((v) => !v);
+                    }}
                     className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium hover:bg-card/50 transition-colors"
                   >
-                    <span>+ Agregar nuevo equipo</span>
+                    <span>{editingGearId ? `Editando: ${gearName}` : '+ Agregar nuevo equipo'}</span>
                     {showAddForm ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                   </button>
                   {showAddForm && (
                     <div className="space-y-4 p-4 border-t border-border/40 bg-card/30">
+                      {/* Tipo */}
                       <div>
-                        <Label htmlFor="gear-name">Nombre</Label>
-                        <Input
-                          id="gear-name"
-                          placeholder="ej: Mi pedalera principal"
-                          value={gearName}
-                          onChange={(e) => setGearName(e.target.value)}
-                          className="mt-2"
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="gear-type">Tipo</Label>
-                        <Select
-                          value={gearType}
-                          onValueChange={(v: typeof gearType) => setGearType(v)}
-                        >
+                        <Label>Tipo</Label>
+                        <Select value={gearType} onValueChange={(v) => handleGearTypeChange(v as GearType)}>
                           <SelectTrigger className="mt-2">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="pedalera">Pedalera</SelectItem>
                             <SelectItem value="amplificador">Amplificador</SelectItem>
+                            <SelectItem value="procesador">Procesador multi-efectos</SelectItem>
+                            <SelectItem value="pedalera">Pedal individual</SelectItem>
+                            <SelectItem value="otro">Otro pedal / efecto</SelectItem>
                             <SelectItem value="guitarra">Guitarra</SelectItem>
-                            <SelectItem value="procesador">Procesador</SelectItem>
-                            <SelectItem value="otro">Otro</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
-                      <div className="grid grid-cols-2 gap-4">
+
+                      {/* Select de modelo (para tipos con librería) */}
+                      {gearType !== 'guitarra' && (
                         <div>
-                          <Label htmlFor="brand">Marca</Label>
+                          <Label>Modelo</Label>
+                          <Select value={selectedModelKey} onValueChange={setSelectedModelKey}>
+                            <SelectTrigger className="mt-2">
+                              <SelectValue placeholder="Seleccionar modelo..." />
+                            </SelectTrigger>
+                            <SelectContent className="max-h-64">
+                              {getLibraryOptions(gearType).map(opt => (
+                                <SelectItem key={opt.key} value={opt.key}>
+                                  {opt.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
+
+                      {/* Inputs manuales para guitarra */}
+                      {gearType === 'guitarra' && (
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <Label>Marca</Label>
+                            <Input value={gearBrand} onChange={e => setGearBrand(e.target.value)} placeholder="ej: Gibson" className="mt-2" />
+                          </div>
+                          <div>
+                            <Label>Modelo</Label>
+                            <Input value={gearModel} onChange={e => setGearModel(e.target.value)} placeholder="ej: Les Paul" className="mt-2" />
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Nombre (auto-completado, editable) */}
+                      {(selectedModelKey || gearType === 'guitarra') && (
+                        <div>
+                          <Label>Nombre en tu setup</Label>
                           <Input
-                            id="brand"
-                            placeholder="ej: ZOOM"
-                            value={gearBrand}
-                            onChange={(e) => setGearBrand(e.target.value)}
+                            placeholder="ej: Mi pedalera principal"
+                            value={gearName}
+                            onChange={(e) => setGearName(e.target.value)}
                             className="mt-2"
                           />
                         </div>
-                        <div>
-                          <Label htmlFor="model">Modelo</Label>
-                          <Input
-                            id="model"
-                            placeholder="ej: B1"
-                            value={gearModel}
-                            onChange={(e) => setGearModel(e.target.value)}
-                            className="mt-2"
-                          />
-                        </div>
-                      </div>
-                      <Button
-                        onClick={handleAddGear}
-                        disabled={createGear.isPending}
-                        className="w-full"
-                      >
-                        {createGear.isPending ? (
-                          <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Guardando...</>
-                        ) : (
-                          "Guardar equipo"
+                      )}
+
+                      <div className="flex gap-2">
+                        <Button
+                          onClick={handleAddGear}
+                          disabled={createGear.isPending || updateGear.isPending || (!selectedModelKey && gearType !== 'guitarra') || !gearName}
+                          className="flex-1"
+                        >
+                          {(createGear.isPending || updateGear.isPending) ? (
+                            <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Guardando...</>
+                          ) : (
+                            editingGearId ? "Actualizar equipo" : "Guardar equipo"
+                          )}
+                        </Button>
+                        {editingGearId && (
+                          <Button variant="outline" onClick={() => { resetGearForm(); setShowAddForm(false); }}>
+                            Cancelar
+                          </Button>
                         )}
-                      </Button>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -1346,6 +1493,9 @@ export default function WizardApp() {
                     Siguiente <ChevronRight className="w-4 h-4 ml-2" />
                   </Button>
                 </div>
+                <Button onClick={handleSalir} variant="ghost" size="sm" className="w-full text-muted-foreground hover:text-foreground">
+                  Salir de la app
+                </Button>
               </CardContent>
             </Card>
           );
@@ -1537,10 +1687,13 @@ export default function WizardApp() {
                 <Button onClick={resetWizard} variant="outline" className="flex-1">
                   Nueva búsqueda
                 </Button>
-                <Button onClick={() => (window.location.href = "/profile")} className="flex-1">
+                <Button onClick={() => navigate('/profile')} className="flex-1">
                   Ver mis presets
                 </Button>
               </div>
+              <Button onClick={handleSalir} variant="ghost" className="w-full text-muted-foreground hover:text-foreground">
+                Salir de la app
+              </Button>
             </div>
           );
         })()}

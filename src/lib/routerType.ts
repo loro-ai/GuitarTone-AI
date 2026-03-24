@@ -93,7 +93,7 @@ const appRouter = router({
     getById: p.input(z.object({ id: z.string() })).query((): IGear | null => null),
     create: p.input(z.object({ name: z.string(), type: z.enum(['pedalera', 'amplificador', 'guitarra', 'procesador', 'otro']), brand: z.string().optional(), model: z.string().optional(), specs: z.record(z.string(), z.unknown()).optional() }))
       .mutation((): IGear => ({ _id: '', userId: '', name: '', type: 'otro', isDefault: false, createdAt: new Date(), updatedAt: new Date() })),
-    update: p.input(z.object({ id: z.string(), data: z.object({ name: z.string().optional(), type: z.enum(['pedalera', 'amplificador', 'guitarra', 'procesador', 'outro']).optional(), brand: z.string().optional(), model: z.string().optional() }) }))
+    update: p.input(z.object({ id: z.string(), data: z.object({ name: z.string().optional(), type: z.enum(['pedalera', 'amplificador', 'guitarra', 'procesador', 'otro']).optional(), brand: z.string().optional(), model: z.string().optional() }) }))
       .mutation((): IGear | null => null),
     delete: p.input(z.object({ id: z.string() })).mutation((): IGear | null => null),
     setDefault: p.input(z.object({ id: z.string() })).mutation((): IGear | null => null),

@@ -20,7 +20,7 @@ function Router() {
       <Route path="/" component={LandingFender} />
       <Route path="/home" component={Home} />
       <Route path="/login" component={Login} />
-      <Route path="/app" component={WizardApp} />
+      {isAuthenticated && <Route path="/app" component={WizardApp} />}
       {isAuthenticated && <Route path="/profile" component={Profile} />}
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />

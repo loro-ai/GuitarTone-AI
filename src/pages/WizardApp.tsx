@@ -747,47 +747,22 @@ function ModuleParamBlock({ modKey, value }: { modKey: string; value: unknown })
   );
 }
 
-// ─── TAG colors ──────────────────────────────────────────────────────────────
-const TAG_STYLES: Record<string, { badge: string; border: string; bg: string }> = {
-  RIFF:   { badge: 'bg-amber-500/20 text-amber-400 border-amber-500/30',   border: 'border-amber-500/30',  bg: 'bg-amber-900/10'  },
-  INTRO:  { badge: 'bg-amber-500/20 text-amber-400 border-amber-500/30',   border: 'border-amber-500/30',  bg: 'bg-amber-900/10'  },
-  VERSO:  { badge: 'bg-amber-500/20 text-amber-400 border-amber-500/30',   border: 'border-amber-500/30',  bg: 'bg-amber-900/10'  },
-  CORO:   { badge: 'bg-red-500/20 text-red-400 border-red-500/30',         border: 'border-red-500/30',    bg: 'bg-red-900/10'    },
-  SOLO:   { badge: 'bg-blue-500/20 text-blue-400 border-blue-500/30',      border: 'border-blue-500/30',   bg: 'bg-blue-900/10'   },
-  PUENTE: { badge: 'bg-violet-500/20 text-violet-400 border-violet-500/30', border: 'border-violet-500/30', bg: 'bg-violet-900/10' },
+// ─── TAG colors — unificados con estructura (distortion-based) ──────────────
+const TAG_STYLES: Record<string, { badge: string; border: string; bg: string; gradient: string }> = {
+  // BASE sections — amber (warm crunch)
+  RIFF:   { badge: 'bg-amber-500/20 text-amber-300 border-amber-500/30',   border: 'border-amber-500/25',  bg: '', gradient: 'from-amber-950/50 via-amber-900/20 to-transparent'  },
+  INTRO:  { badge: 'bg-amber-500/20 text-amber-300 border-amber-500/30',   border: 'border-amber-500/25',  bg: '', gradient: 'from-amber-950/50 via-amber-900/20 to-transparent'  },
+  VERSO:  { badge: 'bg-amber-500/20 text-amber-300 border-amber-500/30',   border: 'border-amber-500/25',  bg: '', gradient: 'from-amber-950/50 via-amber-900/20 to-transparent'  },
+  BASE:   { badge: 'bg-amber-500/20 text-amber-300 border-amber-500/30',   border: 'border-amber-500/25',  bg: '', gradient: 'from-amber-950/50 via-amber-900/20 to-transparent'  },
+  // CORO sections — red (hot gain)
+  CORO:   { badge: 'bg-red-500/20 text-red-300 border-red-500/30',         border: 'border-red-500/25',    bg: '', gradient: 'from-red-950/50 via-red-900/20 to-transparent'    },
+  CHORUS: { badge: 'bg-red-500/20 text-red-300 border-red-500/30',         border: 'border-red-500/25',    bg: '', gradient: 'from-red-950/50 via-red-900/20 to-transparent'    },
+  // SOLO sections — blue/violet (intense lead)
+  SOLO:   { badge: 'bg-blue-500/20 text-blue-300 border-blue-500/30',      border: 'border-blue-500/25',   bg: '', gradient: 'from-blue-950/50 via-blue-900/20 to-transparent'   },
+  PUENTE: { badge: 'bg-violet-500/20 text-violet-300 border-violet-500/30', border: 'border-violet-500/25', bg: '', gradient: 'from-violet-950/50 via-violet-900/20 to-transparent' },
+  BRIDGE: { badge: 'bg-violet-500/20 text-violet-300 border-violet-500/30', border: 'border-violet-500/25', bg: '', gradient: 'from-violet-950/50 via-violet-900/20 to-transparent' },
 };
-const DEFAULT_TAG_STYLE = { badge: 'bg-zinc-500/20 text-zinc-400 border-zinc-500/30', border: 'border-zinc-500/30', bg: 'bg-zinc-900/10' };
-
-// ─── EQ Bar visual ────────────────────────────────────────────────────────────
-function EQBars({ eq }: { eq: Record<string, number> }) {
-  const bands = [
-    { key: 'LO',  label: 'LO',  val: Number(eq.LO  ?? 13) },
-    { key: 'MID', label: 'MID', val: Number(eq.MID ?? 13) },
-    { key: 'HI',  label: 'HI',  val: Number(eq.HI  ?? 13) },
-  ];
-  return (
-    <div className="flex items-center gap-3">
-      <div className="flex items-end gap-1.5 h-5">
-        {bands.map(b => {
-          const diff = b.val - 13;
-          const h = Math.abs(diff) * 2.5 + 2;
-          const color = diff > 0 ? 'bg-amber-400' : diff < 0 ? 'bg-blue-400' : 'bg-zinc-600';
-          return (
-            <div key={b.key} className="flex flex-col items-center gap-0.5">
-              <div className={`w-2 rounded-sm ${color}`} style={{ height: `${h}px` }} />
-            </div>
-          );
-        })}
-      </div>
-      <span className="text-xs text-muted-foreground tabular-nums">
-        {bands.map(b => {
-          const d = b.val - 13;
-          return d === 0 ? '0' : d > 0 ? `+${d}` : String(d);
-        }).join(' · ')}
-      </span>
-    </div>
-  );
-}
+const DEFAULT_TAG_STYLE = { badge: 'bg-zinc-500/20 text-zinc-400 border-zinc-500/30', border: 'border-zinc-500/25', bg: '', gradient: 'from-zinc-900/40 via-zinc-800/20 to-transparent' };
 
 // ─── Serializar valor seguro (evitar [object Object]) ───────────────────────
 function safeValueString(v: unknown): string {
@@ -798,198 +773,225 @@ function safeValueString(v: unknown): string {
     const obj = v as Record<string, unknown>;
     return Object.entries(obj)
       .filter(([, val]) => val !== null && val !== undefined)
-      .map(([k, val]) => `${friendlyParam(k)}: ${safeValueString(val)}`)
+      .map(([k, val]) => `${friendlyParam(k)} ${safeValueString(val)}`)
       .join(' · ');
   }
   return String(v);
 }
 
-// ─── Bloque de módulo individual (jerarquía: nombre → estado → params) ──────
-function ModuleBlock({ slotKey, value }: { slotKey: string; value: unknown }) {
-  const label = slotKey.replace(/_/g, ' ');
+// ─── EQ visual inline (LOW · MID · HIGH con barras) ─────────────────────────
+function EQInline({ eq }: { eq: Record<string, number> }) {
+  const bands = Object.entries(eq).map(([k, v]) => ({ key: k, val: Number(v ?? 0) }));
+  const maxVal = Math.max(...bands.map(b => b.val), 1);
+  return (
+    <div className="flex items-end gap-2">
+      {bands.map(b => {
+        const pct = Math.round((b.val / Math.max(maxVal, 20)) * 100);
+        return (
+          <div key={b.key} className="flex flex-col items-center gap-0.5">
+            <span className="text-[10px] font-bold tabular-nums text-foreground">{b.val}</span>
+            <div className="w-4 bg-white/5 rounded-sm overflow-hidden" style={{ height: '20px' }}>
+              <div
+                className="w-full bg-amber-400/70 rounded-sm transition-all"
+                style={{ height: `${pct}%`, marginTop: 'auto', position: 'relative', top: `${100 - pct}%` }}
+              />
+            </div>
+            <span className="text-[9px] text-muted-foreground uppercase">{b.key}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
-  // Null/undefined
-  if (value === null || value === undefined) return null;
-
-  // Valor escalar (número, string, boolean)
-  if (typeof value !== 'object') {
-    return (
-      <div className="flex items-center gap-3 px-3 py-2">
-        <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{label}</span>
-        <span className="font-bold tabular-nums text-foreground text-sm">{String(value)}</span>
-      </div>
-    );
-  }
-
-  const obj = value as Record<string, unknown>;
-  const keys = Object.keys(obj);
-
-  // EQ especial — objeto con bandas numéricas sin activo/algoritmo
-  const isEqLike = keys.every(k => typeof obj[k] === 'number') && keys.length >= 2 && keys.length <= 5;
-  if (isEqLike) {
-    return (
-      <div className="px-3 py-2 space-y-1.5">
-        <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{label}</span>
-        <div className="flex gap-4">
-          {keys.map(band => {
-            const raw = Number(obj[band] ?? 0);
-            return (
-              <div key={band} className="flex flex-col items-center gap-0.5">
-                <span className="text-[10px] text-muted-foreground">{band}</span>
-                <span className="text-sm font-bold tabular-nums text-foreground">{raw}</span>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    );
-  }
-
-  // Módulo con estado/activo/algoritmo
-  const estado = obj.estado as string | undefined;
-  const activo = obj.activo;
-  const isOff = estado === 'OFF' || activo === false;
+// ─── Configuración inline de un módulo (algoritmo · params) ─────────────────
+function buildConfigString(obj: Record<string, unknown>): { algoName: string; paramStr: string } {
   const display = obj.display as string | undefined;
   const algoritmo = obj.algoritmo as string | undefined;
   const parsed = display ? parseDisplay(display) : null;
-  const efectoNombre = parsed?.nombre ?? algoritmo ?? '';
+  const algoName = parsed?.nombre ?? algoritmo ?? '';
 
-  // Parámetros del módulo (excluir metadatos)
   const META_KEYS = ['estado', 'activo', 'display', 'algoritmo', 'tipo'];
-  const params = Object.entries(obj).filter(([k]) => !META_KEYS.includes(k));
+  const params = Object.entries(obj)
+    .filter(([k]) => !META_KEYS.includes(k))
+    .filter(([, v]) => v !== null && v !== undefined && typeof v !== 'object');
 
-  return (
-    <div className={isOff ? 'opacity-40' : ''}>
-      {/* Cabecera del módulo */}
-      <div className="flex items-center gap-2 px-3 py-2 bg-white/[0.03]">
-        <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground min-w-[60px]">
-          {label}
-        </span>
-        <div className="flex items-center gap-2 flex-1 min-w-0">
-          {/* Estado ON/OFF */}
-          <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold shrink-0 ${
-            isOff ? 'bg-zinc-800 text-zinc-500' : 'bg-accent/20 text-accent'
-          }`}>
-            {isOff ? 'OFF' : 'ON'}
-          </span>
-          {/* Nombre del algoritmo/efecto */}
-          {!isOff && efectoNombre && (
-            <span className="text-xs font-semibold text-foreground truncate">{efectoNombre}</span>
-          )}
-          {/* Display code (Zoom style) */}
-          {!isOff && display && (
-            <span className="font-black font-mono text-xs tracking-widest text-accent bg-accent/10 px-1.5 py-0.5 rounded shrink-0">
-              {display}
-            </span>
-          )}
-        </div>
-      </div>
-      {/* Parámetros del módulo */}
-      {!isOff && params.length > 0 && (
-        <div className="flex flex-wrap gap-x-4 gap-y-1 px-3 py-1.5 ml-[72px]">
-          {params.map(([pk, pv]) => (
-            <div key={pk} className="flex items-baseline gap-1">
-              <span className="text-[10px] text-muted-foreground">{friendlyParam(pk)}</span>
-              <span className="text-xs font-bold tabular-nums text-foreground">{safeValueString(pv)}</span>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
+  const paramStr = params
+    .map(([k, v]) => `${friendlyParam(k).toUpperCase()} ${v}`)
+    .join(' · ');
+
+  return { algoName, paramStr };
 }
 
-// ─── System Params Block ─────────────────────────────────────────────────────
-function SystemParamsBlock({ params }: { params: Record<string, unknown> }) {
-  const entries = Object.entries(params).filter(([, v]) => v !== null && v !== undefined);
-  if (entries.length === 0) return null;
-  return (
-    <div className="space-y-1.5">
-      <span className="text-[10px] font-bold text-cyan-400 uppercase tracking-widest">Configuración del sistema</span>
-      <div className="grid grid-cols-2 gap-x-4 gap-y-1">
-        {entries.map(([k, v]) => (
-          <div key={k} className="flex items-baseline gap-1.5 text-xs">
-            <span className="text-muted-foreground">{k.replace(/_/g, ' ')}</span>
-            <span className="font-bold tabular-nums text-foreground">{safeValueString(v)}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// ─── Preset Card — diseño jerárquico profesional ────────────────────────────
+// ─── Preset Card — tabla tipo Notion (Módulo | Estado | Configuración) ──────
 function PresetCard({ preset, idx }: { preset: PresetConfig; idx: number }) {
   const tag = (preset.tag ?? '').toUpperCase();
   const tagStyle = TAG_STYLES[tag] ?? DEFAULT_TAG_STYLE;
 
-  // Extraer modulos/parametros del primer item de configuracion
+  // Extraer modulos/parametros
   const gc = preset.configuracion?.[0];
   const modulos = gc && 'modulos' in gc ? (gc as { modulos: Record<string, unknown> }).modulos : null;
   const parametros = gc && 'parametros' in gc ? gc.parametros as Record<string, unknown> : null;
+  const entries = Object.entries(modulos ?? parametros ?? {});
 
-  // Datos a renderizar
-  const slotEntries = modulos
-    ? Object.entries(modulos)
-    : parametros
-      ? Object.entries(parametros)
-      : [];
+  // Filas de tabla
+  type TableRow = {
+    module: string;
+    estado: 'ON' | 'OFF' | '—';
+    config: React.ReactNode;
+    isOff: boolean;
+    isEq: boolean;
+  };
+
+  const rows: TableRow[] = [];
+
+  entries.forEach(([key, val]) => {
+    const label = key.replace(/_/g, '/');
+
+    // Escalar (PATCH_LVL, ZNR)
+    if (val === null || val === undefined) return;
+    if (typeof val !== 'object') {
+      rows.push({
+        module: label,
+        estado: '—',
+        config: <span className="text-xs font-bold tabular-nums text-foreground">{String(val)}</span>,
+        isOff: false,
+        isEq: false,
+      });
+      return;
+    }
+
+    const obj = val as Record<string, unknown>;
+    const keys = Object.keys(obj);
+
+    // EQ — objeto con solo bandas numéricas
+    const isEqLike = keys.length >= 2 && keys.length <= 5 && keys.every(k => typeof obj[k] === 'number')
+      && !keys.includes('estado') && !keys.includes('activo');
+    if (isEqLike) {
+      rows.push({
+        module: label,
+        estado: 'ON',
+        config: <EQInline eq={obj as Record<string, number>} />,
+        isOff: false,
+        isEq: true,
+      });
+      return;
+    }
+
+    // Módulo con estado
+    const estado = obj.estado as string | undefined;
+    const activo = obj.activo;
+    const isOff = estado === 'OFF' || activo === false;
+    const { algoName, paramStr } = buildConfigString(obj);
+
+    // Config con subobjects (parámetros anidados)
+    const META_KEYS = ['estado', 'activo', 'display', 'algoritmo', 'tipo'];
+    const nestedParams = Object.entries(obj)
+      .filter(([k]) => !META_KEYS.includes(k))
+      .filter(([, v]) => v !== null && v !== undefined && typeof v === 'object' && !Array.isArray(v));
+
+    const nestedStr = nestedParams
+      .map(([k, v]) => `${friendlyParam(k)} ${safeValueString(v)}`)
+      .join(' · ');
+
+    const fullConfig = [algoName, paramStr, nestedStr].filter(Boolean).join(' · ');
+
+    rows.push({
+      module: label,
+      estado: isOff ? 'OFF' : 'ON',
+      config: isOff
+        ? <span className="text-muted-foreground">—</span>
+        : <span className="text-xs text-foreground/90">{fullConfig || '—'}</span>,
+      isOff,
+      isEq: false,
+    });
+  });
 
   return (
-    <div className={`rounded-xl border overflow-hidden ${tagStyle.border} ${tagStyle.bg}`}>
-      {/* Header */}
-      <div className="px-4 pt-3 pb-2 border-b border-border/30">
+    <div className={`rounded-xl border overflow-hidden ${tagStyle.border} bg-gradient-to-b ${tagStyle.gradient}`}>
+      {/* Header con gradiente */}
+      <div className="px-4 pt-3 pb-2.5 border-b border-white/[0.06]">
         <div className="flex items-start justify-between gap-2">
-          <div className="space-y-0.5">
+          <div>
             <span className={`text-[10px] px-2 py-0.5 rounded font-bold uppercase tracking-widest border ${tagStyle.badge}`}>
               {tag || `Preset ${idx + 1}`}
             </span>
-            <p className="font-bold text-foreground text-sm leading-tight mt-1">
+            <p className="font-bold text-foreground text-sm leading-tight mt-1.5">
               {preset.etiqueta ?? preset.nombre}
             </p>
             {preset.descripcion_corta && (
-              <p className="text-xs text-muted-foreground">{preset.descripcion_corta}</p>
+              <p className="text-[11px] text-muted-foreground mt-0.5 leading-snug">{preset.descripcion_corta}</p>
             )}
           </div>
-          {preset.momento_cancion && (
-            <span className="text-[10px] text-muted-foreground shrink-0 mt-1">{preset.momento_cancion}</span>
-          )}
         </div>
       </div>
 
-      {/* Módulos — render jerárquico */}
-      {slotEntries.length > 0 && (
-        <div className="divide-y divide-border/10">
-          {slotEntries.map(([key, val]) => (
-            <ModuleBlock key={key} slotKey={key} value={val} />
+      {/* Tabla: Módulo | Estado | Configuración */}
+      {rows.length > 0 && (
+        <div>
+          {/* Header de tabla */}
+          <div className="grid grid-cols-[minmax(80px,auto)_50px_1fr] gap-0 px-0 text-[9px] font-bold uppercase tracking-widest text-muted-foreground/60 border-b border-white/[0.04]">
+            <span className="px-3 py-1.5">Módulo</span>
+            <span className="px-1 py-1.5 text-center">Estado</span>
+            <span className="px-3 py-1.5">Configuración</span>
+          </div>
+          {/* Filas */}
+          {rows.map((row, i) => (
+            <div
+              key={i}
+              className={`grid grid-cols-[minmax(80px,auto)_50px_1fr] gap-0 items-center border-b border-white/[0.04] last:border-0 ${
+                row.isOff ? 'opacity-40' : ''
+              } ${row.isEq ? 'bg-amber-500/[0.04]' : i % 2 === 0 ? 'bg-white/[0.01]' : ''}`}
+            >
+              <span className="px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                {row.module}
+              </span>
+              <span className="px-1 py-2 flex justify-center">
+                {row.estado === '—' ? (
+                  <span className="text-[10px] text-muted-foreground/50">—</span>
+                ) : row.estado === 'OFF' ? (
+                  <span className="text-[10px] font-bold text-red-400/80">OFF</span>
+                ) : (
+                  <span className="text-[10px] font-bold text-emerald-400">ON</span>
+                )}
+              </span>
+              <div className="px-3 py-2">
+                {row.config}
+              </div>
+            </div>
           ))}
         </div>
       )}
 
       {/* System params */}
       {preset.system_params && Object.keys(preset.system_params).length > 0 && (
-        <div className="px-3 py-2.5 border-t border-cyan-500/20 bg-cyan-950/20">
-          <SystemParamsBlock params={preset.system_params} />
+        <div className="px-3 py-2.5 border-t border-cyan-500/15 bg-cyan-950/15">
+          <p className="text-[9px] font-bold text-cyan-400/80 uppercase tracking-widest mb-1.5">Sistema</p>
+          <div className="grid grid-cols-2 gap-x-3 gap-y-0.5">
+            {Object.entries(preset.system_params).filter(([, v]) => v != null).map(([k, v]) => (
+              <div key={k} className="flex items-baseline gap-1 text-[10px]">
+                <span className="text-muted-foreground">{k.replace(/_/g, ' ')}</span>
+                <span className="font-bold text-foreground">{safeValueString(v)}</span>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
-      {/* Explicación / Notas */}
+      {/* Consejo */}
       {(preset.explicacion ?? preset.descripcion ?? preset.notas) && (
-        <div className="px-4 py-3 border-t border-border/30 bg-black/20">
-          <p className="text-xs text-muted-foreground leading-relaxed">
-            {preset.efecto_principal && (
-              <span className="font-semibold text-foreground">{preset.efecto_principal}: </span>
-            )}
+        <div className="px-4 py-2.5 border-t border-white/[0.04] bg-black/20">
+          <p className="text-[11px] text-muted-foreground leading-relaxed">
             {preset.explicacion ?? preset.descripcion ?? preset.notas}
           </p>
         </div>
       )}
 
-      {/* Consejos */}
+      {/* Consejos lista */}
       {preset.consejos && preset.consejos.length > 0 && (
-        <div className="px-4 py-2 border-t border-border/20 space-y-0.5">
+        <div className="px-4 py-2 border-t border-white/[0.04] space-y-0.5">
           {preset.consejos.map((c, i) => (
-            <p key={i} className="text-xs text-muted-foreground flex gap-1.5">
+            <p key={i} className="text-[11px] text-muted-foreground flex gap-1.5">
               <span className="text-amber-400 shrink-0">›</span>{c}
             </p>
           ))}

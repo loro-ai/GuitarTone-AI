@@ -945,6 +945,13 @@ const PARAM_NAMES: Record<string, Record<string, string>> = {
   "SPRING":      { P1: "DECAY", P2: "TONE", P3: "MIX", P4: "PREDLY" },
   "PLATE":       { P1: "DECAY", P2: "TONE", P3: "MIX", P4: "PREDLY" },
   "MOD REVERB":  { P1: "DECAY", P2: "TONE", P3: "MIX", P4: "MOD" },
+  // EQ (Graphic / Parametric)
+  "6BandEQ":     { P1: "BASS", P2: "LO-MID", P3: "MID", P4: "TREBLE" },
+  "ParaEQ":      { P1: "BASS", P2: "MID", P3: "TREBLE", P4: "MID FREQ" },
+  "Graphic EQ":  { P1: "BASS", P2: "MID", P3: "TREBLE", P4: "PRESENCE" },
+  "GraphicEQ":   { P1: "BASS", P2: "MID", P3: "TREBLE", P4: "PRESENCE" },
+  "CondEQ":      { P1: "BASS", P2: "MID", P3: "TREBLE", P4: "PRESENCE" },
+  "BossGE7":     { P1: "BASS", P2: "MID", P3: "TREBLE", P4: "LEVEL" },
   // NS
   "ZNR":         { P1: "THRESH", P2: "DECAY" },
   // Slow Attack
@@ -955,6 +962,31 @@ function getParamName(algoritmo: string, paramKey: string): string {
   const map = PARAM_NAMES[algoritmo];
   if (map && map[paramKey]) return map[paramKey];
   return paramKey;
+}
+
+// ─── Slot display names ──────────────────────────────────────────────────────
+const SLOT_DISPLAY: Record<string, string> = {
+  FX_COMP: 'COMP', DS_OD: 'DRIVE', AMP: 'AMP', CAB: 'CAB', NS: 'NOISE GATE',
+  EQ: 'EQ', MOD: 'MOD', DELAY: 'DELAY', REVERB: 'REVERB',
+  COMP_LIMIT: 'COMP', EFX: 'EFX', DRIVE: 'DRIVE', MOD_DELAY: 'MOD/DLY', REV_DELAY: 'REV/DLY',
+};
+
+function getSlotDisplay(slot: string): string {
+  return SLOT_DISPLAY[slot] || slot.replace(/_/g, '/');
+}
+
+// ─── Friendly algo name (remove internal codes) ──────────────────────────────
+const ALGO_FRIENDLY: Record<string, string> = {
+  'ORG GRPH': 'Graphic EQ (Orange)', 'RECT ORG': 'Mesa Rectifier',
+  'MS 800': 'Marshall JCM800', 'FD TWIN': 'Fender Twin',
+  'UK 30A': 'Vox AC30', 'BG DRIVE': 'Bogner Drive',
+  'DZ DRV': 'Diezel Drive', 'GoldDRV': 'Gold Drive (Klon)',
+  'TS Drive': 'Tube Screamer', 'CE-CHORUS': 'Boss CE Chorus',
+  'THE VIBE': 'Uni-Vibe',
+};
+
+function getAlgoDisplay(algo: string): string {
+  return ALGO_FRIENDLY[algo] || algo;
 }
 
 // ─── Preset Card — bloques verticales por módulo (formato.png) ──────────────
@@ -1007,7 +1039,9 @@ function PresetCard({ preset, idx }: { preset: PresetConfig; idx: number }) {
         <div className="divide-y divide-white/[0.04]">
           {modulosArray.map((mod, i) => {
             const isOff = mod.estado?.toLowerCase() === 'off' || mod.algoritmo?.toLowerCase() === 'off';
-            const algoDisplay = isOff ? '' : (mod.algoritmo || '');
+            const algoRaw = mod.algoritmo || '';
+            const algoDisplay = isOff ? '' : getAlgoDisplay(algoRaw);
+            const slotDisplay = getSlotDisplay(mod.slot);
             const META = new Set(['estado', 'activo', 'algoritmo', 'tipo', 'display', 'value']);
             const params = Object.entries(mod.parametros || {})
               .filter(([k]) => !META.has(k))
@@ -1017,7 +1051,7 @@ function PresetCard({ preset, idx }: { preset: PresetConfig; idx: number }) {
             if (mod.algoritmo === '—' && 'value' in mod.parametros) {
               return (
                 <div key={i} className="flex items-center justify-between px-4 py-2">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{mod.slot.replace(/_/g, '/')}</span>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{slotDisplay}</span>
                   <span className="text-sm font-bold tabular-nums text-foreground">{safeValueString(mod.parametros.value)}</span>
                 </div>
               );
@@ -1028,7 +1062,7 @@ function PresetCard({ preset, idx }: { preset: PresetConfig; idx: number }) {
                 {/* Slot header */}
                 <div className="flex items-center gap-2 px-4 py-1.5 bg-white/[0.02]">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground w-20 shrink-0">
-                    {mod.slot.replace(/_/g, '/')}
+                    {slotDisplay}
                   </span>
                   {algoDisplay && (
                     <span className="text-xs font-semibold text-foreground">{algoDisplay}</span>
@@ -1043,7 +1077,7 @@ function PresetCard({ preset, idx }: { preset: PresetConfig; idx: number }) {
                     {params.map(([k, v]) => (
                       <div key={k} className="flex items-center justify-between text-[11px]">
                         <span className="text-muted-foreground uppercase tracking-wide text-[10px]">
-                          {getParamName(mod.algoritmo, k)}
+                          {getParamName(algoRaw, k)}
                         </span>
                         <span className="font-bold tabular-nums text-foreground">{safeValueString(v)}</span>
                       </div>
@@ -1094,10 +1128,61 @@ function PresetCard({ preset, idx }: { preset: PresetConfig; idx: number }) {
   );
 }
 
-// ─── AMP BASE Card — configuración global AMP + CAB + NS ─────────────────────
-function AmpBaseCard({ ampGlobal }: { ampGlobal: Record<string, { algoritmo: string; P1?: number; P2?: number; P3?: number; P4?: number }> }) {
+// ─── AMP BASE Card — amp real del usuario O simulación global ─────────────────
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function AmpBaseCard({ ampGlobal }: { ampGlobal: Record<string, any> }) {
+  if (!ampGlobal || Object.keys(ampGlobal).length === 0) return null;
+
+  // ── Modo AMP REAL (source: USER_REAL_AMP) ──
+  const isRealAmp = ampGlobal.source === 'USER_REAL_AMP';
+
+  if (isRealAmp) {
+    const eq = ampGlobal.eq || {};
+    return (
+      <div className="rounded-xl border overflow-hidden border-orange-500/25 bg-gradient-to-b from-orange-950/50 via-orange-900/20 to-transparent">
+        <div className="px-4 pt-3 pb-2.5 border-b border-white/[0.06]">
+          <div className="flex items-center gap-2">
+            <Speaker className="w-3.5 h-3.5 text-orange-400" />
+            <span className="text-[10px] px-2 py-0.5 rounded font-bold uppercase tracking-widest border bg-orange-500/20 text-orange-300 border-orange-500/30">
+              TU AMP
+            </span>
+            <span className="text-xs font-semibold text-foreground">{ampGlobal.amp_name || 'Amplificador'}</span>
+          </div>
+          <p className="text-[10px] text-muted-foreground mt-1">Configuración sugerida para tu amp real</p>
+        </div>
+        <div className="px-4 py-3 space-y-2">
+          {/* EQ */}
+          <div className="space-y-1">
+            <p className="text-[9px] font-bold text-orange-400/80 uppercase tracking-widest">Ecualización</p>
+            <div className="grid grid-cols-3 gap-2">
+              {[['BASS', eq.bass], ['MID', eq.mid], ['TREBLE', eq.treble]].map(([label, val]) => (
+                <div key={label as string} className="text-center">
+                  <span className="text-[10px] text-muted-foreground uppercase">{label as string}</span>
+                  <p className="text-lg font-bold tabular-nums text-foreground">{val ?? '—'}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+          {/* Gain */}
+          {ampGlobal.gain !== undefined && (
+            <div className="flex items-center justify-between border-t border-white/[0.06] pt-2">
+              <span className="text-[10px] text-muted-foreground uppercase tracking-wide">GAIN</span>
+              <span className="text-lg font-bold tabular-nums text-foreground">{ampGlobal.gain}</span>
+            </div>
+          )}
+          {/* Notas */}
+          {ampGlobal.notes && (
+            <p className="text-[11px] text-muted-foreground leading-relaxed border-t border-white/[0.06] pt-2">
+              {ampGlobal.notes}
+            </p>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // ── Modo SIMULADO (AMP + CAB + NS del procesador) ──
   const slots = Object.entries(ampGlobal);
-  if (slots.length === 0) return null;
 
   return (
     <div className="rounded-xl border overflow-hidden border-orange-500/25 bg-gradient-to-b from-orange-950/50 via-orange-900/20 to-transparent">
@@ -1105,15 +1190,16 @@ function AmpBaseCard({ ampGlobal }: { ampGlobal: Record<string, { algoritmo: str
         <div className="flex items-center gap-2">
           <Speaker className="w-3.5 h-3.5 text-orange-400" />
           <span className="text-[10px] px-2 py-0.5 rounded font-bold uppercase tracking-widest border bg-orange-500/20 text-orange-300 border-orange-500/30">
-            AMP BASE
+            AMP SIM
           </span>
-          <span className="text-[11px] text-muted-foreground ml-auto">Global · Todos los presets</span>
+          <span className="text-[11px] text-muted-foreground ml-auto">Simulación · Todos los presets</span>
         </div>
       </div>
       <div className="divide-y divide-white/[0.04]">
         {slots.map(([slotKey, slotData]) => {
+          if (typeof slotData !== 'object' || slotData === null) return null;
           const algo = slotData.algoritmo || '—';
-          const META = new Set(['algoritmo']);
+          const META = new Set(['algoritmo', 'estado']);
           const params = Object.entries(slotData)
             .filter(([k]) => !META.has(k))
             .filter(([, v]) => v !== null && v !== undefined && v !== 0);

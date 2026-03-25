@@ -418,32 +418,37 @@ function BaseGearSpecCard({ gc, allGear }: { gc: GearConfig; allGear: IGear[] })
   );
 }
 
-// ─── Colores por nivel de distorsión ──────────────────────────────────────────
-const DISTORTION_COLORS: Record<string, string> = {
-  clean: 'bg-green-500/20 text-green-300 border-green-500/40',
-  'light-crunch': 'bg-lime-500/20 text-lime-300 border-lime-500/40',
-  crunch: 'bg-amber-500/20 text-amber-300 border-amber-500/40',
-  'high-gain': 'bg-red-500/20 text-red-300 border-red-500/40',
-  heavy: 'bg-rose-500/20 text-rose-300 border-rose-500/40',
+// ─── Gradientes por nivel de distorsión (calidez → oscuridad) ────────────────
+const DISTORTION_THEME: Record<string, { gradient: string; border: string; text: string; badge: string; glow: string }> = {
+  clean:         { gradient: 'from-emerald-950/60 via-emerald-900/30 to-transparent', border: 'border-emerald-500/30', text: 'text-emerald-300', badge: 'bg-emerald-500/20 text-emerald-300', glow: 'shadow-emerald-500/10' },
+  'light-crunch': { gradient: 'from-lime-950/60 via-yellow-900/25 to-transparent', border: 'border-lime-500/30', text: 'text-lime-300', badge: 'bg-lime-500/20 text-lime-300', glow: 'shadow-lime-500/10' },
+  crunch:        { gradient: 'from-amber-950/60 via-orange-900/30 to-transparent', border: 'border-amber-500/30', text: 'text-amber-300', badge: 'bg-amber-500/20 text-amber-300', glow: 'shadow-amber-500/10' },
+  'high-gain':   { gradient: 'from-red-950/70 via-red-900/35 to-transparent', border: 'border-red-500/35', text: 'text-red-300', badge: 'bg-red-500/20 text-red-300', glow: 'shadow-red-500/15' },
+  heavy:         { gradient: 'from-rose-950/80 via-rose-900/40 to-transparent', border: 'border-rose-500/40', text: 'text-rose-300', badge: 'bg-rose-500/25 text-rose-300', glow: 'shadow-rose-500/20' },
 };
-const DEFAULT_DISTORTION_COLOR = 'bg-zinc-500/20 text-zinc-300 border-zinc-500/40';
+const DEFAULT_DISTORTION_THEME = { gradient: 'from-zinc-900/50 via-zinc-800/25 to-transparent', border: 'border-zinc-500/30', text: 'text-zinc-300', badge: 'bg-zinc-500/20 text-zinc-300', glow: 'shadow-zinc-500/10' };
+
+function getDistortionTheme(level?: string) {
+  return DISTORTION_THEME[level ?? ''] ?? DEFAULT_DISTORTION_THEME;
+}
 
 // ─── Dinámica a barra visual ─────────────────────────────────────────────────
 const DINAMICA_LEVELS: Record<string, number> = { pp: 1, p: 2, mp: 3, mf: 4, f: 5, ff: 6 };
 
-function DinamicaBar({ dinamica }: { dinamica?: string }) {
+function DinamicaBar({ dinamica, color }: { dinamica?: string; color?: string }) {
   if (!dinamica) return null;
   const level = DINAMICA_LEVELS[dinamica] ?? 3;
+  const barColor = color ?? 'bg-accent';
   return (
-    <div className="flex items-center gap-1" title={`Dinámica: ${dinamica}`}>
+    <div className="flex items-center gap-0.5" title={`Dinámica: ${dinamica}`}>
       {[1, 2, 3, 4, 5, 6].map(i => (
         <div
           key={i}
-          className={`w-1 rounded-sm transition-all ${i <= level ? 'bg-accent' : 'bg-muted/40'}`}
-          style={{ height: `${4 + i * 2}px` }}
+          className={`w-1 rounded-full transition-all ${i <= level ? barColor : 'bg-white/10'}`}
+          style={{ height: `${3 + i * 2}px` }}
         />
       ))}
-      <span className="text-[10px] text-muted-foreground ml-0.5">{dinamica}</span>
+      <span className="text-[10px] text-muted-foreground ml-1 tabular-nums">{dinamica}</span>
     </div>
   );
 }
@@ -452,24 +457,26 @@ function DinamicaBar({ dinamica }: { dinamica?: string }) {
 function SongStructure({ estructura }: { estructura: SongEstructuraSection[] }) {
   if (!estructura || estructura.length === 0) return null;
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       <p className="text-xs font-semibold text-foreground uppercase tracking-wide flex items-center gap-1.5">
         <Music className="w-3.5 h-3.5 text-accent" /> Estructura de la canción
       </p>
       {/* Timeline visual */}
       <div className="flex items-center gap-0 overflow-x-auto pb-1">
         {estructura.map((sec, i) => {
-          const colorClass = DISTORTION_COLORS[sec.nivel_distorsion ?? ''] ?? DEFAULT_DISTORTION_COLOR;
+          const theme = getDistortionTheme(sec.nivel_distorsion);
           return (
             <div key={i} className="flex items-center shrink-0">
-              <div className={`px-3 py-2 rounded-lg border text-xs text-center min-w-[80px] ${colorClass}`}>
-                <p className="font-bold leading-tight uppercase">{sec.seccion}</p>
+              <div className={`px-3 py-2.5 rounded-lg border text-xs text-center min-w-[80px] bg-gradient-to-b ${theme.gradient} ${theme.border} shadow-lg ${theme.glow}`}>
+                <p className={`font-bold leading-tight uppercase tracking-wide ${theme.text}`}>{sec.seccion}</p>
                 {sec.dinamica && (
-                  <p className="text-[10px] opacity-70 mt-0.5">{sec.dinamica}</p>
+                  <div className="mt-1 flex justify-center">
+                    <DinamicaBar dinamica={sec.dinamica} color={theme.badge.split(' ')[0]} />
+                  </div>
                 )}
               </div>
               {i < estructura.length - 1 && (
-                <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0 mx-0.5" />
+                <ChevronRight className="w-4 h-4 text-muted-foreground/40 shrink-0 mx-0.5" />
               )}
             </div>
           );
@@ -478,28 +485,36 @@ function SongStructure({ estructura }: { estructura: SongEstructuraSection[] }) 
       {/* Detalle por sección */}
       <div className="grid grid-cols-1 gap-2">
         {estructura.map((sec, i) => {
-          const colorClass = DISTORTION_COLORS[sec.nivel_distorsion ?? ''] ?? DEFAULT_DISTORTION_COLOR;
+          const theme = getDistortionTheme(sec.nivel_distorsion);
           return (
-            <div key={i} className={`rounded-lg border px-3 py-2 text-xs ${colorClass}`}>
-              <div className="flex items-center justify-between gap-2 mb-1">
-                <span className="font-bold uppercase tracking-wide">{sec.seccion}</span>
-                <div className="flex items-center gap-2">
-                  {sec.nivel_distorsion && (
-                    <span className="text-[10px] opacity-80">{sec.nivel_distorsion}</span>
-                  )}
-                  <DinamicaBar dinamica={sec.dinamica} />
+            <div key={i} className={`rounded-xl border overflow-hidden ${theme.border} shadow-md ${theme.glow}`}>
+              <div className={`bg-gradient-to-r ${theme.gradient} px-4 py-2.5`}>
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className={`font-bold uppercase tracking-widest text-xs ${theme.text}`}>{sec.seccion}</span>
+                    {sec.nivel_distorsion && (
+                      <span className={`text-[10px] px-2 py-0.5 rounded-full border ${theme.badge} ${theme.border}`}>
+                        {sec.nivel_distorsion}
+                      </span>
+                    )}
+                  </div>
+                  <DinamicaBar dinamica={sec.dinamica} color={theme.badge.split(' ')[0]} />
                 </div>
               </div>
-              {sec.tecnica && (
-                <p className="opacity-80">{sec.tecnica}</p>
-              )}
-              {sec.efectos_clave && sec.efectos_clave.length > 0 && (
-                <div className="flex flex-wrap gap-1 mt-1">
-                  {sec.efectos_clave.map((fx, j) => (
-                    <span key={j} className="text-[10px] bg-black/20 px-1.5 py-0.5 rounded">{fx}</span>
-                  ))}
-                </div>
-              )}
+              <div className="px-4 py-2 space-y-1.5 bg-black/20">
+                {sec.tecnica && (
+                  <p className="text-xs text-foreground/80">{sec.tecnica}</p>
+                )}
+                {sec.efectos_clave && sec.efectos_clave.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {sec.efectos_clave.map((fx, j) => (
+                      <span key={j} className={`text-[10px] px-2 py-0.5 rounded-full border ${theme.badge} ${theme.border}`}>
+                        {fx}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           );
         })}
@@ -519,10 +534,10 @@ function SongTimeline({ presets }: { presets: PresetConfig[] }) {
       <div className="flex items-center gap-0 overflow-x-auto pb-1">
         {presets.map((p, i) => {
           const tag = (p.tag ?? '').toUpperCase();
-          const style = TAG_STYLES[tag] ?? DEFAULT_TAG_STYLE;
+          const tagStyle = TAG_STYLES[tag] ?? DEFAULT_TAG_STYLE;
           return (
             <div key={i} className="flex items-center shrink-0">
-              <div className={`px-3 py-2 rounded-lg border text-xs text-center min-w-[80px] ${style.badge}`}>
+              <div className={`px-3 py-2 rounded-lg border text-xs text-center min-w-[80px] ${tagStyle.badge}`}>
                 <p className="font-bold leading-tight">{tag || p.nombre}</p>
                 {p.momento_cancion && (
                   <p className="text-[10px] opacity-70 mt-0.5">{p.momento_cancion}</p>
@@ -774,77 +789,114 @@ function EQBars({ eq }: { eq: Record<string, number> }) {
   );
 }
 
-// ─── Render dinámico de un slot (cualquier procesador) ──────────────────────
-function DynamicSlotRow({ slotKey, value }: { slotKey: string; value: unknown }) {
+// ─── Serializar valor seguro (evitar [object Object]) ───────────────────────
+function safeValueString(v: unknown): string {
+  if (v === null || v === undefined) return '—';
+  if (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean') return String(v);
+  if (Array.isArray(v)) return v.map(safeValueString).join(', ');
+  if (typeof v === 'object') {
+    const obj = v as Record<string, unknown>;
+    return Object.entries(obj)
+      .filter(([, val]) => val !== null && val !== undefined)
+      .map(([k, val]) => `${friendlyParam(k)}: ${safeValueString(val)}`)
+      .join(' · ');
+  }
+  return String(v);
+}
+
+// ─── Bloque de módulo individual (jerarquía: nombre → estado → params) ──────
+function ModuleBlock({ slotKey, value }: { slotKey: string; value: unknown }) {
   const label = slotKey.replace(/_/g, ' ');
 
-  // Valor escalar (número, string, boolean)
+  // Null/undefined
   if (value === null || value === undefined) return null;
+
+  // Valor escalar (número, string, boolean)
   if (typeof value !== 'object') {
-    return {
-      label,
-      content: <span className="font-bold tabular-nums text-foreground">{String(value)}</span>,
-    };
+    return (
+      <div className="flex items-center gap-3 px-3 py-2">
+        <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{label}</span>
+        <span className="font-bold tabular-nums text-foreground text-sm">{String(value)}</span>
+      </div>
+    );
   }
 
-  // EQ especial — objeto con bandas numéricas sin activo/algoritmo
   const obj = value as Record<string, unknown>;
   const keys = Object.keys(obj);
+
+  // EQ especial — objeto con bandas numéricas sin activo/algoritmo
   const isEqLike = keys.every(k => typeof obj[k] === 'number') && keys.length >= 2 && keys.length <= 5;
   if (isEqLike) {
-    return {
-      label,
-      content: <EQBars eq={obj as Record<string, number>} />,
-    };
+    return (
+      <div className="px-3 py-2 space-y-1.5">
+        <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{label}</span>
+        <div className="flex gap-4">
+          {keys.map(band => {
+            const raw = Number(obj[band] ?? 0);
+            return (
+              <div key={band} className="flex flex-col items-center gap-0.5">
+                <span className="text-[10px] text-muted-foreground">{band}</span>
+                <span className="text-sm font-bold tabular-nums text-foreground">{raw}</span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
   }
 
   // Módulo con estado/activo/algoritmo
   const estado = obj.estado as string | undefined;
   const activo = obj.activo;
   const isOff = estado === 'OFF' || activo === false;
-
-  if (isOff) {
-    return {
-      label,
-      content: <span className="text-muted-foreground text-xs italic">— off —</span>,
-    };
-  }
-
   const display = obj.display as string | undefined;
   const algoritmo = obj.algoritmo as string | undefined;
   const parsed = display ? parseDisplay(display) : null;
   const efectoNombre = parsed?.nombre ?? algoritmo ?? '';
 
-  // Recoger parámetros dinámicamente (P1, P2, P3, P4 o cualquier otro)
-  const paramKeys = keys.filter(k => !['estado', 'activo', 'display', 'algoritmo', 'tipo'].includes(k));
+  // Parámetros del módulo (excluir metadatos)
+  const META_KEYS = ['estado', 'activo', 'display', 'algoritmo', 'tipo'];
+  const params = Object.entries(obj).filter(([k]) => !META_KEYS.includes(k));
 
-  return {
-    label,
-    content: (
-      <div className="flex items-center gap-2 flex-wrap">
-        {display && (
-          <span className="font-black font-mono text-sm tracking-widest text-accent bg-accent/10 px-2 py-0.5 rounded">
-            {display}
+  return (
+    <div className={isOff ? 'opacity-40' : ''}>
+      {/* Cabecera del módulo */}
+      <div className="flex items-center gap-2 px-3 py-2 bg-white/[0.03]">
+        <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground min-w-[60px]">
+          {label}
+        </span>
+        <div className="flex items-center gap-2 flex-1 min-w-0">
+          {/* Estado ON/OFF */}
+          <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold shrink-0 ${
+            isOff ? 'bg-zinc-800 text-zinc-500' : 'bg-accent/20 text-accent'
+          }`}>
+            {isOff ? 'OFF' : 'ON'}
           </span>
-        )}
-        {efectoNombre && !display && (
-          <span className="text-xs font-semibold text-accent">{efectoNombre}</span>
-        )}
-        {efectoNombre && display && (
-          <span className="text-xs text-muted-foreground">{efectoNombre}</span>
-        )}
-        {estado && estado !== 'OFF' && (
-          <span className="text-[10px] font-bold bg-accent/20 text-accent px-1.5 py-0.5 rounded">{estado}</span>
-        )}
-        {obj.tipo != null && <span className="text-xs text-muted-foreground italic">{String(obj.tipo)}</span>}
-        {paramKeys.map(pk => (
-          <span key={pk} className="text-xs text-foreground/80">
-            {friendlyParam(pk)}: <strong className="tabular-nums">{String(obj[pk])}</strong>
-          </span>
-        ))}
+          {/* Nombre del algoritmo/efecto */}
+          {!isOff && efectoNombre && (
+            <span className="text-xs font-semibold text-foreground truncate">{efectoNombre}</span>
+          )}
+          {/* Display code (Zoom style) */}
+          {!isOff && display && (
+            <span className="font-black font-mono text-xs tracking-widest text-accent bg-accent/10 px-1.5 py-0.5 rounded shrink-0">
+              {display}
+            </span>
+          )}
+        </div>
       </div>
-    ),
-  };
+      {/* Parámetros del módulo */}
+      {!isOff && params.length > 0 && (
+        <div className="flex flex-wrap gap-x-4 gap-y-1 px-3 py-1.5 ml-[72px]">
+          {params.map(([pk, pv]) => (
+            <div key={pk} className="flex items-baseline gap-1">
+              <span className="text-[10px] text-muted-foreground">{friendlyParam(pk)}</span>
+              <span className="text-xs font-bold tabular-nums text-foreground">{safeValueString(pv)}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 // ─── System Params Block ─────────────────────────────────────────────────────
@@ -852,15 +904,13 @@ function SystemParamsBlock({ params }: { params: Record<string, unknown> }) {
   const entries = Object.entries(params).filter(([, v]) => v !== null && v !== undefined);
   if (entries.length === 0) return null;
   return (
-    <div className="rounded-lg border border-cyan-500/30 overflow-hidden bg-cyan-900/10">
-      <div className="px-3 py-2 bg-cyan-500/10 border-b border-cyan-500/20">
-        <span className="text-[10px] font-bold text-cyan-400 uppercase tracking-widest">Configuración del sistema</span>
-      </div>
-      <div className="divide-y divide-border/20">
+    <div className="space-y-1.5">
+      <span className="text-[10px] font-bold text-cyan-400 uppercase tracking-widest">Configuración del sistema</span>
+      <div className="grid grid-cols-2 gap-x-4 gap-y-1">
         {entries.map(([k, v]) => (
-          <div key={k} className="flex items-center justify-between px-4 py-2 gap-4 text-xs">
+          <div key={k} className="flex items-baseline gap-1.5 text-xs">
             <span className="text-muted-foreground">{k.replace(/_/g, ' ')}</span>
-            <span className="font-bold tabular-nums text-foreground">{String(v)}</span>
+            <span className="font-bold tabular-nums text-foreground">{safeValueString(v)}</span>
           </div>
         ))}
       </div>
@@ -868,39 +918,30 @@ function SystemParamsBlock({ params }: { params: Record<string, unknown> }) {
   );
 }
 
-// ─── Preset Card — diseño tipo tabla (100% dinámico) ────────────────────────
+// ─── Preset Card — diseño jerárquico profesional ────────────────────────────
 function PresetCard({ preset, idx }: { preset: PresetConfig; idx: number }) {
   const tag = (preset.tag ?? '').toUpperCase();
-  const style = TAG_STYLES[tag] ?? DEFAULT_TAG_STYLE;
+  const tagStyle = TAG_STYLES[tag] ?? DEFAULT_TAG_STYLE;
 
   // Extraer modulos/parametros del primer item de configuracion
   const gc = preset.configuracion?.[0];
   const modulos = gc && 'modulos' in gc ? (gc as { modulos: Record<string, unknown> }).modulos : null;
+  const parametros = gc && 'parametros' in gc ? gc.parametros as Record<string, unknown> : null;
 
-  // Filas de la tabla — render dinámico sin orden fijo
-  const rows: { label: string; content: React.ReactNode }[] = [];
-
-  if (modulos) {
-    // Iterar TODOS los slots presentes, en el orden que vienen
-    Object.entries(modulos).forEach(([key, val]) => {
-      const row = DynamicSlotRow({ slotKey: key, value: val });
-      if (row) rows.push(row);
-    });
-  } else if (gc && 'parametros' in gc && gc.parametros) {
-    // Renderizado genérico para cualquier equipo
-    Object.entries(gc.parametros as Record<string, unknown>).forEach(([k, v]) => {
-      const row = DynamicSlotRow({ slotKey: k, value: v });
-      if (row) rows.push(row);
-    });
-  }
+  // Datos a renderizar
+  const slotEntries = modulos
+    ? Object.entries(modulos)
+    : parametros
+      ? Object.entries(parametros)
+      : [];
 
   return (
-    <div className={`rounded-xl border overflow-hidden ${style.border} ${style.bg}`}>
+    <div className={`rounded-xl border overflow-hidden ${tagStyle.border} ${tagStyle.bg}`}>
       {/* Header */}
       <div className="px-4 pt-3 pb-2 border-b border-border/30">
         <div className="flex items-start justify-between gap-2">
           <div className="space-y-0.5">
-            <span className={`text-[10px] px-2 py-0.5 rounded font-bold uppercase tracking-widest border ${style.badge}`}>
+            <span className={`text-[10px] px-2 py-0.5 rounded font-bold uppercase tracking-widest border ${tagStyle.badge}`}>
               {tag || `Preset ${idx + 1}`}
             </span>
             <p className="font-bold text-foreground text-sm leading-tight mt-1">
@@ -916,23 +957,18 @@ function PresetCard({ preset, idx }: { preset: PresetConfig; idx: number }) {
         </div>
       </div>
 
-      {/* Tabla de módulos — dinámico */}
-      {rows.length > 0 && (
-        <div className="divide-y divide-border/20">
-          {rows.map((row, i) => (
-            <div key={i} className="flex items-center justify-between px-4 py-2 gap-4">
-              <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground w-24 shrink-0">
-                {row.label}
-              </span>
-              <div className="flex-1 flex justify-end">{row.content}</div>
-            </div>
+      {/* Módulos — render jerárquico */}
+      {slotEntries.length > 0 && (
+        <div className="divide-y divide-border/10">
+          {slotEntries.map(([key, val]) => (
+            <ModuleBlock key={key} slotKey={key} value={val} />
           ))}
         </div>
       )}
 
       {/* System params */}
       {preset.system_params && Object.keys(preset.system_params).length > 0 && (
-        <div className="px-3 py-2 border-t border-border/20">
+        <div className="px-3 py-2.5 border-t border-cyan-500/20 bg-cyan-950/20">
           <SystemParamsBlock params={preset.system_params} />
         </div>
       )}

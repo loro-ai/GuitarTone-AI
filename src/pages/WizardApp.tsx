@@ -182,7 +182,7 @@ function GearSpecCard({ gear }: { gear: IGear }) {
 
   const specsQuery = trpc.gear.getSpecs.useQuery(
     { gearId: String(gear._id), brand: gear.brand ?? '', model: gear.model ?? '', type: gear.type },
-    { enabled: !!gear.brand && !!gear.model && !md }
+    { enabled: !!gear.brand && !!gear.model }
   );
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const specs = specsQuery.data?.specs as any;

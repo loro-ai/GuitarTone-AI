@@ -823,95 +823,89 @@ function buildConfigString(obj: Record<string, unknown>): { algoName: string; pa
   return { algoName, paramStr };
 }
 
-// ─── Preset Card — tabla tipo Notion (Módulo | Estado | Configuración) ──────
+// ─── Mapper dinámico de P1-P4 a nombres semánticos por algoritmo ─────────────
+const PARAM_NAMES: Record<string, Record<string, string>> = {
+  // COMP/FILTER
+  "OptComp":     { P1: "SUSTAIN", P2: "ATTACK", P3: "LEVEL", P4: "TONE" },
+  "M COMP":      { P1: "SUSTAIN", P2: "ATTACK", P3: "LEVEL", P4: "TONE" },
+  "BlackOpt":    { P1: "SUSTAIN", P2: "ATTACK", P3: "LEVEL", P4: "TONE" },
+  "Compressor":  { P1: "SENS" },
+  "Limiter":     { P1: "LEVEL" },
+  // DRIVE/AMP
+  "TS Drive":    { P1: "GAIN", P2: "TONE", P3: "LEVEL", P4: "MIX" },
+  "GoldDRV":     { P1: "GAIN", P2: "TONE", P3: "LEVEL", P4: "MIX" },
+  "SQUEAK":      { P1: "GAIN", P2: "TONE", P3: "LEVEL", P4: "MIX" },
+  "FD TWIN":     { P1: "GAIN", P2: "BASS", P3: "MID", P4: "TREBLE" },
+  "UK 30A":      { P1: "GAIN", P2: "BASS", P3: "MID", P4: "TREBLE" },
+  "MS 800":      { P1: "GAIN", P2: "BASS", P3: "MID", P4: "TREBLE" },
+  "BG DRIVE":    { P1: "GAIN", P2: "BASS", P3: "MID", P4: "TREBLE" },
+  "DZ DRV":      { P1: "GAIN", P2: "BASS", P3: "MID", P4: "TREBLE" },
+  "RECT ORG":    { P1: "GAIN", P2: "BASS", P3: "MID", P4: "TREBLE" },
+  "ORG GRPH":    { P1: "GAIN", P2: "BASS", P3: "MID", P4: "TREBLE" },
+  "Fuzz Face":   { P1: "GAIN", P2: "TONE", P3: "LEVEL", P4: "MIX" },
+  // MOD
+  "CHORUS":      { P1: "RATE", P2: "DEPTH", P3: "MIX", P4: "TONE" },
+  "CE-CHORUS":   { P1: "RATE", P2: "DEPTH", P3: "MIX", P4: "TONE" },
+  "FLANGER":     { P1: "RATE", P2: "DEPTH", P3: "MIX", P4: "FB" },
+  "PHASER":      { P1: "RATE", P2: "DEPTH", P3: "MIX", P4: "STAGE" },
+  "THE VIBE":    { P1: "SPEED", P2: "DEPTH", P3: "MIX", P4: "TONE" },
+  "TREMOLO":     { P1: "RATE", P2: "DEPTH", P3: "WAVE", P4: "MIX" },
+  "VIBRATO":     { P1: "RATE", P2: "DEPTH", P3: "MIX", P4: "TONE" },
+  // DELAY
+  "DELAY":       { P1: "TIME", P2: "FB", P3: "MIX", P4: "TONE" },
+  "ANALOGDELAY": { P1: "TIME", P2: "FB", P3: "MIX", P4: "TONE" },
+  "TAPE ECHORUS":{ P1: "TIME", P2: "FB", P3: "MIX", P4: "TONE" },
+  "REVERSE":     { P1: "TIME", P2: "FB", P3: "MIX", P4: "TONE" },
+  "PITCHDELAY":  { P1: "TIME", P2: "FB", P3: "PITCH", P4: "MIX" },
+  // REVERB
+  "HALL":        { P1: "DECAY", P2: "TONE", P3: "MIX", P4: "PREDLY" },
+  "ROOM":        { P1: "DECAY", P2: "TONE", P3: "MIX", P4: "PREDLY" },
+  "SPRING":      { P1: "DECAY", P2: "TONE", P3: "MIX", P4: "PREDLY" },
+  "PLATE":       { P1: "DECAY", P2: "TONE", P3: "MIX", P4: "PREDLY" },
+  "MOD REVERB":  { P1: "DECAY", P2: "TONE", P3: "MIX", P4: "MOD" },
+  // NS
+  "ZNR":         { P1: "THRESH", P2: "DECAY" },
+  // Slow Attack
+  "SlowAttack":  { P1: "TIME", P2: "CURVE" },
+};
+
+function getParamName(algoritmo: string, paramKey: string): string {
+  const map = PARAM_NAMES[algoritmo];
+  if (map && map[paramKey]) return map[paramKey];
+  return paramKey;
+}
+
+// ─── Preset Card — bloques verticales por módulo (formato.png) ──────────────
 function PresetCard({ preset, idx }: { preset: PresetConfig; idx: number }) {
   const tag = (preset.tag ?? '').toUpperCase();
   const tagStyle = TAG_STYLES[tag] ?? DEFAULT_TAG_STYLE;
 
-  // Extraer modulos/parametros
   const gc = preset.configuracion?.[0];
-  const modulos = gc && 'modulos' in gc ? (gc as { modulos: Record<string, unknown> }).modulos : null;
-  const parametros = gc && 'parametros' in gc ? gc.parametros as Record<string, unknown> : null;
-  const entries = Object.entries(modulos ?? parametros ?? {});
-
-  // Filas de tabla
-  type TableRow = {
-    module: string;
-    estado: 'ON' | 'OFF' | '—';
-    config: React.ReactNode;
-    isOff: boolean;
-    isEq: boolean;
-  };
-
-  const rows: TableRow[] = [];
-
-  entries.forEach(([key, val]) => {
-    const label = key.replace(/_/g, '/');
-
-    // Escalar (PATCH_LVL, ZNR)
-    if (val === null || val === undefined) return;
-    if (typeof val !== 'object') {
-      rows.push({
-        module: label,
-        estado: '—',
-        config: <span className="text-xs font-bold tabular-nums text-foreground">{String(val)}</span>,
-        isOff: false,
-        isEq: false,
-      });
-      return;
-    }
-
-    const obj = val as Record<string, unknown>;
-    const keys = Object.keys(obj);
-
-    // EQ — objeto con solo bandas numéricas
-    const isEqLike = keys.length >= 2 && keys.length <= 5 && keys.every(k => typeof obj[k] === 'number')
-      && !keys.includes('estado') && !keys.includes('activo');
-    if (isEqLike) {
-      rows.push({
-        module: label,
-        estado: 'ON',
-        config: <EQInline eq={obj as Record<string, number>} />,
-        isOff: false,
-        isEq: true,
-      });
-      return;
-    }
-
-    // Módulo con estado
-    const estado = obj.estado as string | undefined;
-    const activo = obj.activo;
-    const isOff = estado === 'OFF' || activo === false;
-    const { algoName, paramStr } = buildConfigString(obj);
-
-    // Config con subobjects (parámetros anidados)
-    const META_KEYS = ['estado', 'activo', 'display', 'algoritmo', 'tipo'];
-    const nestedParams = Object.entries(obj)
-      .filter(([k]) => !META_KEYS.includes(k))
-      .filter(([, v]) => v !== null && v !== undefined && typeof v === 'object' && !Array.isArray(v));
-
-    const nestedStr = nestedParams
-      .map(([k, v]) => `${friendlyParam(k)} ${safeValueString(v)}`)
-      .join(' · ');
-
-    const fullConfig = [algoName, paramStr, nestedStr].filter(Boolean).join(' · ');
-
-    rows.push({
-      module: label,
-      estado: isOff ? 'OFF' : 'ON',
-      config: isOff
-        ? <span className="text-muted-foreground">—</span>
-        : <span className="text-xs text-foreground/90">{fullConfig || '—'}</span>,
-      isOff,
-      isEq: false,
-    });
-  });
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const gcAny = gc as any;
+  // Soporte array de módulos (nuevo formato n8n) y objeto (legacy)
+  const modulosArray: Array<{ slot: string; algoritmo: string; estado: string; parametros: Record<string, unknown> }> =
+    Array.isArray(gcAny?.modulos)
+      ? gcAny.modulos
+      : gcAny?.modulos && typeof gcAny.modulos === 'object'
+        ? Object.entries(gcAny.modulos).map(([slot, val]) => {
+            if (typeof val !== 'object' || val === null) return { slot, algoritmo: '—', estado: '—', parametros: { value: val } };
+            const obj = val as Record<string, unknown>;
+            return { slot, algoritmo: String(obj.algoritmo ?? obj.tipo ?? ''), estado: String(obj.estado ?? 'on'), parametros: obj };
+          })
+        : gcAny?.parametros
+          ? Object.entries(gcAny.parametros as Record<string, unknown>).map(([slot, val]) => {
+              if (typeof val !== 'object' || val === null) return { slot, algoritmo: '—', estado: '—', parametros: { value: val } };
+              const obj = val as Record<string, unknown>;
+              return { slot, algoritmo: String(obj.algoritmo ?? obj.tipo ?? ''), estado: String(obj.estado ?? 'on'), parametros: obj };
+            })
+          : [];
 
   return (
     <div className={`rounded-xl border overflow-hidden ${tagStyle.border} bg-gradient-to-b ${tagStyle.gradient}`}>
-      {/* Header con gradiente */}
+      {/* Header */}
       <div className="px-4 pt-3 pb-2.5 border-b border-white/[0.06]">
-        <div className="flex items-start justify-between gap-2">
+        <div className="flex items-center justify-between gap-2">
           <div>
             <span className={`text-[10px] px-2 py-0.5 rounded font-bold uppercase tracking-widest border ${tagStyle.badge}`}>
               {tag || `Preset ${idx + 1}`}
@@ -919,66 +913,83 @@ function PresetCard({ preset, idx }: { preset: PresetConfig; idx: number }) {
             <p className="font-bold text-foreground text-sm leading-tight mt-1.5">
               {preset.etiqueta ?? preset.nombre}
             </p>
-            {preset.descripcion_corta && (
-              <p className="text-[11px] text-muted-foreground mt-0.5 leading-snug">{preset.descripcion_corta}</p>
-            )}
           </div>
         </div>
+        {preset.descripcion_corta && (
+          <p className="text-[11px] text-muted-foreground mt-1 leading-snug">{preset.descripcion_corta}</p>
+        )}
       </div>
 
-      {/* Tabla: Módulo | Estado | Configuración */}
-      {rows.length > 0 && (
-        <div>
-          {/* Header de tabla */}
-          <div className="grid grid-cols-[minmax(80px,auto)_50px_1fr] gap-0 px-0 text-[9px] font-bold uppercase tracking-widest text-muted-foreground/60 border-b border-white/[0.04]">
-            <span className="px-3 py-1.5">Módulo</span>
-            <span className="px-1 py-1.5 text-center">Estado</span>
-            <span className="px-3 py-1.5">Configuración</span>
-          </div>
-          {/* Filas */}
-          {rows.map((row, i) => (
-            <div
-              key={i}
-              className={`grid grid-cols-[minmax(80px,auto)_50px_1fr] gap-0 items-center border-b border-white/[0.04] last:border-0 ${
-                row.isOff ? 'opacity-40' : ''
-              } ${row.isEq ? 'bg-amber-500/[0.04]' : i % 2 === 0 ? 'bg-white/[0.01]' : ''}`}
-            >
-              <span className="px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                {row.module}
-              </span>
-              <span className="px-1 py-2 flex justify-center">
-                {row.estado === '—' ? (
-                  <span className="text-[10px] text-muted-foreground/50">—</span>
-                ) : row.estado === 'OFF' ? (
-                  <span className="text-[10px] font-bold text-red-400/80">OFF</span>
-                ) : (
-                  <span className="text-[10px] font-bold text-emerald-400">ON</span>
+      {/* Módulos */}
+      {modulosArray.length > 0 && (
+        <div className="divide-y divide-white/[0.04]">
+          {modulosArray.map((mod, i) => {
+            const isOff = mod.estado?.toLowerCase() === 'off' || mod.algoritmo?.toLowerCase() === 'off';
+            const algoDisplay = isOff ? '' : (mod.algoritmo || '');
+            const META = new Set(['estado', 'activo', 'algoritmo', 'tipo', 'display', 'value']);
+            const params = Object.entries(mod.parametros || {})
+              .filter(([k]) => !META.has(k))
+              .filter(([, v]) => v !== null && v !== undefined && v !== 0 && v !== '');
+
+            // Scalar value (PATCH_LVL, ZNR as number)
+            if (mod.algoritmo === '—' && 'value' in mod.parametros) {
+              return (
+                <div key={i} className="flex items-center justify-between px-4 py-2">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{mod.slot.replace(/_/g, '/')}</span>
+                  <span className="text-sm font-bold tabular-nums text-foreground">{safeValueString(mod.parametros.value)}</span>
+                </div>
+              );
+            }
+
+            return (
+              <div key={i} className={isOff ? 'opacity-35' : ''}>
+                {/* Slot header */}
+                <div className="flex items-center gap-2 px-4 py-1.5 bg-white/[0.02]">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground w-20 shrink-0">
+                    {mod.slot.replace(/_/g, '/')}
+                  </span>
+                  {algoDisplay && (
+                    <span className="text-xs font-semibold text-foreground">{algoDisplay}</span>
+                  )}
+                  <span className={`ml-auto px-1.5 py-0.5 rounded text-[9px] font-bold ${
+                    isOff ? 'bg-red-500/15 text-red-400/80' : 'bg-emerald-500/15 text-emerald-400'
+                  }`}>{isOff ? 'OFF' : 'ON'}</span>
+                </div>
+                {/* Parámetros */}
+                {!isOff && params.length > 0 && (
+                  <div className="px-4 py-1.5 space-y-0.5">
+                    {params.map(([k, v]) => (
+                      <div key={k} className="flex items-center justify-between text-[11px]">
+                        <span className="text-muted-foreground uppercase tracking-wide text-[10px]">
+                          {getParamName(mod.algoritmo, k)}
+                        </span>
+                        <span className="font-bold tabular-nums text-foreground">{safeValueString(v)}</span>
+                      </div>
+                    ))}
+                  </div>
                 )}
-              </span>
-              <div className="px-3 py-2">
-                {row.config}
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
       {/* System params */}
       {preset.system_params && Object.keys(preset.system_params).length > 0 && (
-        <div className="px-3 py-2.5 border-t border-cyan-500/15 bg-cyan-950/15">
+        <div className="px-4 py-2.5 border-t border-cyan-500/15 bg-cyan-950/15">
           <p className="text-[9px] font-bold text-cyan-400/80 uppercase tracking-widest mb-1.5">Sistema</p>
-          <div className="grid grid-cols-2 gap-x-3 gap-y-0.5">
+          <div className="space-y-0.5">
             {Object.entries(preset.system_params).filter(([, v]) => v != null).map(([k, v]) => (
-              <div key={k} className="flex items-baseline gap-1 text-[10px]">
-                <span className="text-muted-foreground">{k.replace(/_/g, ' ')}</span>
-                <span className="font-bold text-foreground">{safeValueString(v)}</span>
+              <div key={k} className="flex items-center justify-between text-[11px]">
+                <span className="text-muted-foreground uppercase tracking-wide text-[10px]">{k.replace(/_/g, ' ')}</span>
+                <span className="font-bold tabular-nums text-foreground">{safeValueString(v)}</span>
               </div>
             ))}
           </div>
         </div>
       )}
 
-      {/* Consejo */}
+      {/* Explicación */}
       {(preset.explicacion ?? preset.descripcion ?? preset.notas) && (
         <div className="px-4 py-2.5 border-t border-white/[0.04] bg-black/20">
           <p className="text-[11px] text-muted-foreground leading-relaxed">
@@ -987,7 +998,7 @@ function PresetCard({ preset, idx }: { preset: PresetConfig; idx: number }) {
         </div>
       )}
 
-      {/* Consejos lista */}
+      {/* Consejos */}
       {preset.consejos && preset.consejos.length > 0 && (
         <div className="px-4 py-2 border-t border-white/[0.04] space-y-0.5">
           {preset.consejos.map((c, i) => (

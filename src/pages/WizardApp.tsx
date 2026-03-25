@@ -39,7 +39,7 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { toast } from "sonner";
-import type { MusicBrainzResult, PresetConfig, GearConfig, IGear, IGearModule, ToneResearch, SongEstructuraSection } from "@/types/api";
+import type { MusicBrainzResult, PresetConfig, GearConfig, IGear, IGearModule, ToneResearch, SongEstructuraSection, SongStructureSection, AmpReference } from "@/types/api";
 import PresetLoader from "@/components/PresetLoader";
 import { AMPS_REF, PEDALS_REF, PROCESSORS_REF } from "@/const/gear-library";
 
@@ -509,6 +509,88 @@ function SongStructure({ estructura }: { estructura: SongEstructuraSection[] }) 
                   <div className="flex flex-wrap gap-1.5">
                     {sec.efectos_clave.map((fx, j) => (
                       <span key={j} className={`text-[10px] px-2 py-0.5 rounded-full border ${theme.badge} ${theme.border}`}>
+                        {fx}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ─── Song Structure v2 (songStructure con intensidad y EQ) ──────────────────
+const TEXTURE_THEME: Record<string, { gradient: string; border: string; text: string; badge: string }> = {
+  clean:  { gradient: 'from-emerald-950/60 via-emerald-900/20 to-transparent', border: 'border-emerald-500/30', text: 'text-emerald-400', badge: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30' },
+  crunch: { gradient: 'from-amber-950/60 via-amber-900/20 to-transparent',   border: 'border-amber-500/30',   text: 'text-amber-400',   badge: 'bg-amber-500/20 text-amber-300 border-amber-500/30' },
+  heavy:  { gradient: 'from-red-950/60 via-red-900/20 to-transparent',       border: 'border-red-500/30',     text: 'text-red-400',     badge: 'bg-red-500/20 text-red-300 border-red-500/30' },
+};
+const DEFAULT_TEXTURE_THEME = TEXTURE_THEME.crunch;
+
+function SongStructureV2({ sections }: { sections: SongStructureSection[] }) {
+  if (!sections || sections.length === 0) return null;
+  return (
+    <div className="space-y-4">
+      <p className="text-xs font-semibold text-foreground uppercase tracking-wide flex items-center gap-1.5">
+        <Music className="w-3.5 h-3.5 text-accent" /> Estructura de la canción
+      </p>
+      {/* Timeline */}
+      <div className="flex items-center gap-0 overflow-x-auto pb-1">
+        {sections.map((sec, i) => {
+          const theme = TEXTURE_THEME[sec.texture] ?? DEFAULT_TEXTURE_THEME;
+          const barW = Math.max(sec.intensity * 10, 20);
+          return (
+            <div key={i} className="flex items-center shrink-0">
+              <div className={`px-3 py-2.5 rounded-lg border text-xs text-center min-w-[80px] bg-gradient-to-b ${theme.gradient} ${theme.border} shadow-lg`}>
+                <p className={`font-bold leading-tight uppercase tracking-wide ${theme.text}`}>{sec.section}</p>
+                <div className="mt-1 h-1.5 bg-black/30 rounded-full overflow-hidden">
+                  <div className={`h-full rounded-full ${sec.texture === 'clean' ? 'bg-emerald-400' : sec.texture === 'heavy' ? 'bg-red-400' : 'bg-amber-400'}`} style={{ width: `${barW}%` }} />
+                </div>
+                <p className="text-[9px] text-muted-foreground mt-0.5">{sec.intensity}/10</p>
+              </div>
+              {i < sections.length - 1 && (
+                <ChevronRight className="w-4 h-4 text-muted-foreground/40 shrink-0 mx-0.5" />
+              )}
+            </div>
+          );
+        })}
+      </div>
+      {/* Detail cards */}
+      <div className="grid grid-cols-1 gap-2">
+        {sections.map((sec, i) => {
+          const theme = TEXTURE_THEME[sec.texture] ?? DEFAULT_TEXTURE_THEME;
+          return (
+            <div key={i} className={`rounded-xl border overflow-hidden ${theme.border} shadow-md`}>
+              <div className={`bg-gradient-to-r ${theme.gradient} px-4 py-2.5`}>
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className={`font-bold uppercase tracking-widest text-xs ${theme.text}`}>{sec.section}</span>
+                    <span className={`text-[10px] px-2 py-0.5 rounded-full border ${theme.badge}`}>{sec.texture}</span>
+                  </div>
+                  <span className="text-[10px] font-bold text-muted-foreground tabular-nums">{sec.intensity}/10</span>
+                </div>
+              </div>
+              <div className="px-4 py-2 space-y-1.5 bg-black/20">
+                {/* EQ adjust */}
+                {sec.eqAdjust && (
+                  <div className="flex gap-3 text-[10px]">
+                    <span className="text-muted-foreground">EQ:</span>
+                    <span className="text-foreground font-bold tabular-nums">B {sec.eqAdjust.bass}</span>
+                    <span className="text-foreground font-bold tabular-nums">M {sec.eqAdjust.mid}</span>
+                    <span className="text-foreground font-bold tabular-nums">T {sec.eqAdjust.treble}</span>
+                  </div>
+                )}
+                {sec.technique && (
+                  <p className="text-xs text-foreground/80">{sec.technique}</p>
+                )}
+                {sec.keyEffects && sec.keyEffects.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {sec.keyEffects.map((fx, j) => (
+                      <span key={j} className={`text-[10px] px-2 py-0.5 rounded-full border ${theme.badge}`}>
                         {fx}
                       </span>
                     ))}
@@ -1866,12 +1948,16 @@ export default function WizardApp() {
                 </section>
               )}
 
-              {/* ── 4. Estructura de la canción (desde toneResearch) ── */}
-              {toneResearchData?.estructura && toneResearchData.estructura.length > 0 && (
+              {/* ── 4. Estructura de la canción (v2 songStructure o legacy) ── */}
+              {toneResearchData?.songStructure && toneResearchData.songStructure.length > 0 ? (
+                <section className="p-4 bg-card/50 border border-border/50 rounded-xl">
+                  <SongStructureV2 sections={toneResearchData.songStructure} />
+                </section>
+              ) : toneResearchData?.estructura && toneResearchData.estructura.length > 0 ? (
                 <section className="p-4 bg-card/50 border border-border/50 rounded-xl">
                   <SongStructure estructura={toneResearchData.estructura} />
                 </section>
-              )}
+              ) : null}
 
               {/* ── 4b. Timeline de presets (fallback si no hay estructura) ── */}
               {(!toneResearchData?.estructura || toneResearchData.estructura.length === 0) && generatedPresets.presetsData.length > 0 && (

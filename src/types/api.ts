@@ -124,7 +124,37 @@ export interface SongEstructuraSection {
   tecnica?: string;
 }
 
+export interface AmpReference {
+  marca: string;
+  modelo: string;
+  caracter: "bright" | "dark" | "neutral";
+  gainBase: number;
+  eqBase: { bass: number; mid: number; treble: number };
+  notes: string;
+}
+
+export interface SongStructureSection {
+  section: "intro" | "verso" | "coro" | "pre-coro" | "solo" | "bridge" | "outro" | "riff" | "breakdown";
+  intensity: number;
+  texture: "clean" | "crunch" | "heavy";
+  keyEffects: string[];
+  eqAdjust?: { bass: number; mid: number; treble: number };
+  gainDelta?: number;
+  technique?: string;
+}
+
+export interface BaseTone {
+  nivelDistorsion: string;
+  esTocadoLimpio: boolean;
+}
+
 export interface ToneResearch {
+  // ── v2 ──
+  ampReference?: AmpReference;
+  songStructure?: SongStructureSection[];
+  baseTone?: BaseTone;
+
+  // ── legacy ──
   equipment: Array<{ nombre: string; tipo: string; posicion?: string }>;
   cadenaSenal?: string[];
   amplificador?: { marca?: string; modelo?: string; configuracion?: string };

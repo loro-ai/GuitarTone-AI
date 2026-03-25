@@ -39,7 +39,7 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { toast } from "sonner";
-import type { MusicBrainzResult, PresetConfig, GearConfig, IGear, IGearModule } from "@/types/api";
+import type { MusicBrainzResult, PresetConfig, GearConfig, IGear, IGearModule, ToneResearch, SongEstructuraSection } from "@/types/api";
 import PresetLoader from "@/components/PresetLoader";
 import { AMPS_REF, PEDALS_REF, PROCESSORS_REF } from "@/const/gear-library";
 
@@ -68,17 +68,7 @@ function getLibraryOptions(type: GearType): LibraryOption[] {
 
 // ─── Componente resumen de investigación de tono ──────────────────────────────
 
-type ToneResearchData = {
-  equipment: Array<{ nombre: string; tipo: string; posicion?: string }>;
-  cadenaSenal?: string[];
-  amplificador?: { marca?: string; modelo?: string; configuracion?: string };
-  techniques: string[];
-  notes: string;
-  nivelDistorsion?: string;
-  esTocadoLimpio?: boolean;
-};
-
-function ToneResearchSummary({ data }: { data: ToneResearchData }) {
+function ToneResearchSummary({ data }: { data: ToneResearch }) {
   const distortionLabel = data.nivelDistorsion
     ? data.nivelDistorsion.charAt(0).toUpperCase() + data.nivelDistorsion.slice(1)
     : null;
@@ -97,6 +87,11 @@ function ToneResearchSummary({ data }: { data: ToneResearchData }) {
         Investigación del tono original
       </p>
 
+      {/* Descripción del tono */}
+      {data.descripcion_tono && (
+        <p className="text-foreground/90 leading-relaxed">{data.descripcion_tono}</p>
+      )}
+
       {/* Nivel de distorsión */}
       {distortionLabel && (
         <div className="flex items-center gap-2">
@@ -106,6 +101,32 @@ function ToneResearchSummary({ data }: { data: ToneResearchData }) {
           {data.esTocadoLimpio && (
             <span className="text-xs bg-green-500/20 text-green-500 px-1.5 py-0.5 rounded">limpio</span>
           )}
+        </div>
+      )}
+
+      {/* Guitarra */}
+      {data.guitarra?.marca && (
+        <div className="space-y-0.5">
+          <p className="text-xs font-semibold text-accent uppercase tracking-wide">Guitarra</p>
+          <p className="text-muted-foreground">
+            {data.guitarra.marca} {data.guitarra.modelo}
+            {data.guitarra.pastillas && (
+              <span className="text-xs ml-1">— {data.guitarra.pastillas}</span>
+            )}
+          </p>
+        </div>
+      )}
+
+      {/* Amplificador */}
+      {data.amplificador?.marca && (
+        <div className="space-y-0.5">
+          <p className="text-xs font-semibold text-accent uppercase tracking-wide">Amplificador</p>
+          <p className="text-muted-foreground">
+            {data.amplificador.marca} {data.amplificador.modelo}
+            {data.amplificador.configuracion && (
+              <span className="text-xs ml-1">— {data.amplificador.configuracion}</span>
+            )}
+          </p>
         </div>
       )}
 
@@ -126,24 +147,11 @@ function ToneResearchSummary({ data }: { data: ToneResearchData }) {
         </div>
       )}
 
-      {/* Amplificador */}
-      {data.amplificador?.marca && (
-        <div className="space-y-0.5">
-          <p className="text-xs font-semibold text-accent uppercase tracking-wide">Amplificador</p>
-          <p className="text-muted-foreground">
-            {data.amplificador.marca} {data.amplificador.modelo}
-            {data.amplificador.configuracion && (
-              <span className="text-xs ml-1">— {data.amplificador.configuracion}</span>
-            )}
-          </p>
-        </div>
-      )}
-
       {/* Técnica */}
-      {data.techniques.length > 0 && (
+      {(data.tecnica || data.techniques.length > 0) && (
         <div className="space-y-0.5">
           <p className="text-xs font-semibold text-accent uppercase tracking-wide">Técnica</p>
-          <p className="text-muted-foreground">{data.techniques.join(", ")}</p>
+          <p className="text-muted-foreground">{data.tecnica || data.techniques.join(", ")}</p>
         </div>
       )}
 
@@ -410,35 +418,122 @@ function BaseGearSpecCard({ gc, allGear }: { gc: GearConfig; allGear: IGear[] })
   );
 }
 
-// ─── Timeline de la canción ───────────────────────────────────────────────────
-function SongTimeline({ presets }: { presets: PresetConfig[] }) {
-  if (presets.length === 0) return null;
-  const sectionColors = [
-    "bg-violet-500/20 text-violet-300 border-violet-500/40",
-    "bg-blue-500/20 text-blue-300 border-blue-500/40",
-    "bg-amber-500/20 text-amber-300 border-amber-500/40",
-    "bg-rose-500/20 text-rose-300 border-rose-500/40",
-    "bg-emerald-500/20 text-emerald-300 border-emerald-500/40",
-  ];
+// ─── Colores por nivel de distorsión ──────────────────────────────────────────
+const DISTORTION_COLORS: Record<string, string> = {
+  clean: 'bg-green-500/20 text-green-300 border-green-500/40',
+  'light-crunch': 'bg-lime-500/20 text-lime-300 border-lime-500/40',
+  crunch: 'bg-amber-500/20 text-amber-300 border-amber-500/40',
+  'high-gain': 'bg-red-500/20 text-red-300 border-red-500/40',
+  heavy: 'bg-rose-500/20 text-rose-300 border-rose-500/40',
+};
+const DEFAULT_DISTORTION_COLOR = 'bg-zinc-500/20 text-zinc-300 border-zinc-500/40';
+
+// ─── Dinámica a barra visual ─────────────────────────────────────────────────
+const DINAMICA_LEVELS: Record<string, number> = { pp: 1, p: 2, mp: 3, mf: 4, f: 5, ff: 6 };
+
+function DinamicaBar({ dinamica }: { dinamica?: string }) {
+  if (!dinamica) return null;
+  const level = DINAMICA_LEVELS[dinamica] ?? 3;
   return (
-    <div className="space-y-2">
+    <div className="flex items-center gap-1" title={`Dinámica: ${dinamica}`}>
+      {[1, 2, 3, 4, 5, 6].map(i => (
+        <div
+          key={i}
+          className={`w-1 rounded-sm transition-all ${i <= level ? 'bg-accent' : 'bg-muted/40'}`}
+          style={{ height: `${4 + i * 2}px` }}
+        />
+      ))}
+      <span className="text-[10px] text-muted-foreground ml-0.5">{dinamica}</span>
+    </div>
+  );
+}
+
+// ─── Estructura de la canción (desde toneResearch.estructura) ────────────────
+function SongStructure({ estructura }: { estructura: SongEstructuraSection[] }) {
+  if (!estructura || estructura.length === 0) return null;
+  return (
+    <div className="space-y-3">
       <p className="text-xs font-semibold text-foreground uppercase tracking-wide flex items-center gap-1.5">
         <Music className="w-3.5 h-3.5 text-accent" /> Estructura de la canción
       </p>
+      {/* Timeline visual */}
       <div className="flex items-center gap-0 overflow-x-auto pb-1">
-        {presets.map((p, i) => (
-          <div key={i} className="flex items-center shrink-0">
-            <div className={`px-3 py-2 rounded-lg border text-xs text-center min-w-[80px] ${sectionColors[i % sectionColors.length]}`}>
-              <p className="font-bold leading-tight">{p.nombre}</p>
-              {p.momento_cancion && (
-                <p className="text-[10px] opacity-70 mt-0.5">{p.momento_cancion}</p>
+        {estructura.map((sec, i) => {
+          const colorClass = DISTORTION_COLORS[sec.nivel_distorsion ?? ''] ?? DEFAULT_DISTORTION_COLOR;
+          return (
+            <div key={i} className="flex items-center shrink-0">
+              <div className={`px-3 py-2 rounded-lg border text-xs text-center min-w-[80px] ${colorClass}`}>
+                <p className="font-bold leading-tight uppercase">{sec.seccion}</p>
+                {sec.dinamica && (
+                  <p className="text-[10px] opacity-70 mt-0.5">{sec.dinamica}</p>
+                )}
+              </div>
+              {i < estructura.length - 1 && (
+                <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0 mx-0.5" />
               )}
             </div>
-            {i < presets.length - 1 && (
-              <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0 mx-0.5" />
-            )}
-          </div>
-        ))}
+          );
+        })}
+      </div>
+      {/* Detalle por sección */}
+      <div className="grid grid-cols-1 gap-2">
+        {estructura.map((sec, i) => {
+          const colorClass = DISTORTION_COLORS[sec.nivel_distorsion ?? ''] ?? DEFAULT_DISTORTION_COLOR;
+          return (
+            <div key={i} className={`rounded-lg border px-3 py-2 text-xs ${colorClass}`}>
+              <div className="flex items-center justify-between gap-2 mb-1">
+                <span className="font-bold uppercase tracking-wide">{sec.seccion}</span>
+                <div className="flex items-center gap-2">
+                  {sec.nivel_distorsion && (
+                    <span className="text-[10px] opacity-80">{sec.nivel_distorsion}</span>
+                  )}
+                  <DinamicaBar dinamica={sec.dinamica} />
+                </div>
+              </div>
+              {sec.tecnica && (
+                <p className="opacity-80">{sec.tecnica}</p>
+              )}
+              {sec.efectos_clave && sec.efectos_clave.length > 0 && (
+                <div className="flex flex-wrap gap-1 mt-1">
+                  {sec.efectos_clave.map((fx, j) => (
+                    <span key={j} className="text-[10px] bg-black/20 px-1.5 py-0.5 rounded">{fx}</span>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ─── Timeline de presets (fallback sin estructura) ───────────────────────────
+function SongTimeline({ presets }: { presets: PresetConfig[] }) {
+  if (presets.length === 0) return null;
+  return (
+    <div className="space-y-2">
+      <p className="text-xs font-semibold text-foreground uppercase tracking-wide flex items-center gap-1.5">
+        <SlidersHorizontal className="w-3.5 h-3.5 text-accent" /> Presets generados
+      </p>
+      <div className="flex items-center gap-0 overflow-x-auto pb-1">
+        {presets.map((p, i) => {
+          const tag = (p.tag ?? '').toUpperCase();
+          const style = TAG_STYLES[tag] ?? DEFAULT_TAG_STYLE;
+          return (
+            <div key={i} className="flex items-center shrink-0">
+              <div className={`px-3 py-2 rounded-lg border text-xs text-center min-w-[80px] ${style.badge}`}>
+                <p className="font-bold leading-tight">{tag || p.nombre}</p>
+                {p.momento_cancion && (
+                  <p className="text-[10px] opacity-70 mt-0.5">{p.momento_cancion}</p>
+                )}
+              </div>
+              {i < presets.length - 1 && (
+                <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0 mx-0.5" />
+              )}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -679,116 +774,123 @@ function EQBars({ eq }: { eq: Record<string, number> }) {
   );
 }
 
-// ─── Preset Card — diseño tipo tabla ─────────────────────────────────────────
+// ─── Render dinámico de un slot (cualquier procesador) ──────────────────────
+function DynamicSlotRow({ slotKey, value }: { slotKey: string; value: unknown }) {
+  const label = slotKey.replace(/_/g, ' ');
+
+  // Valor escalar (número, string, boolean)
+  if (value === null || value === undefined) return null;
+  if (typeof value !== 'object') {
+    return {
+      label,
+      content: <span className="font-bold tabular-nums text-foreground">{String(value)}</span>,
+    };
+  }
+
+  // EQ especial — objeto con bandas numéricas sin activo/algoritmo
+  const obj = value as Record<string, unknown>;
+  const keys = Object.keys(obj);
+  const isEqLike = keys.every(k => typeof obj[k] === 'number') && keys.length >= 2 && keys.length <= 5;
+  if (isEqLike) {
+    return {
+      label,
+      content: <EQBars eq={obj as Record<string, number>} />,
+    };
+  }
+
+  // Módulo con estado/activo/algoritmo
+  const estado = obj.estado as string | undefined;
+  const activo = obj.activo;
+  const isOff = estado === 'OFF' || activo === false;
+
+  if (isOff) {
+    return {
+      label,
+      content: <span className="text-muted-foreground text-xs italic">— off —</span>,
+    };
+  }
+
+  const display = obj.display as string | undefined;
+  const algoritmo = obj.algoritmo as string | undefined;
+  const parsed = display ? parseDisplay(display) : null;
+  const efectoNombre = parsed?.nombre ?? algoritmo ?? '';
+
+  // Recoger parámetros dinámicamente (P1, P2, P3, P4 o cualquier otro)
+  const paramKeys = keys.filter(k => !['estado', 'activo', 'display', 'algoritmo', 'tipo'].includes(k));
+
+  return {
+    label,
+    content: (
+      <div className="flex items-center gap-2 flex-wrap">
+        {display && (
+          <span className="font-black font-mono text-sm tracking-widest text-accent bg-accent/10 px-2 py-0.5 rounded">
+            {display}
+          </span>
+        )}
+        {efectoNombre && !display && (
+          <span className="text-xs font-semibold text-accent">{efectoNombre}</span>
+        )}
+        {efectoNombre && display && (
+          <span className="text-xs text-muted-foreground">{efectoNombre}</span>
+        )}
+        {estado && estado !== 'OFF' && (
+          <span className="text-[10px] font-bold bg-accent/20 text-accent px-1.5 py-0.5 rounded">{estado}</span>
+        )}
+        {obj.tipo != null && <span className="text-xs text-muted-foreground italic">{String(obj.tipo)}</span>}
+        {paramKeys.map(pk => (
+          <span key={pk} className="text-xs text-foreground/80">
+            {friendlyParam(pk)}: <strong className="tabular-nums">{String(obj[pk])}</strong>
+          </span>
+        ))}
+      </div>
+    ),
+  };
+}
+
+// ─── System Params Block ─────────────────────────────────────────────────────
+function SystemParamsBlock({ params }: { params: Record<string, unknown> }) {
+  const entries = Object.entries(params).filter(([, v]) => v !== null && v !== undefined);
+  if (entries.length === 0) return null;
+  return (
+    <div className="rounded-lg border border-cyan-500/30 overflow-hidden bg-cyan-900/10">
+      <div className="px-3 py-2 bg-cyan-500/10 border-b border-cyan-500/20">
+        <span className="text-[10px] font-bold text-cyan-400 uppercase tracking-widest">Configuración del sistema</span>
+      </div>
+      <div className="divide-y divide-border/20">
+        {entries.map(([k, v]) => (
+          <div key={k} className="flex items-center justify-between px-4 py-2 gap-4 text-xs">
+            <span className="text-muted-foreground">{k.replace(/_/g, ' ')}</span>
+            <span className="font-bold tabular-nums text-foreground">{String(v)}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── Preset Card — diseño tipo tabla (100% dinámico) ────────────────────────
 function PresetCard({ preset, idx }: { preset: PresetConfig; idx: number }) {
-  const tag = preset.tag ?? '';
+  const tag = (preset.tag ?? '').toUpperCase();
   const style = TAG_STYLES[tag] ?? DEFAULT_TAG_STYLE;
 
-  // Extraer modulos del primer item de configuracion
+  // Extraer modulos/parametros del primer item de configuracion
   const gc = preset.configuracion?.[0];
   const modulos = gc && 'modulos' in gc ? (gc as { modulos: Record<string, unknown> }).modulos : null;
 
-  // Filas de la tabla de módulos
+  // Filas de la tabla — render dinámico sin orden fijo
   const rows: { label: string; content: React.ReactNode }[] = [];
 
   if (modulos) {
-    const SLOT_ORDER = ['COMP_LIMIT','EFX','DRIVE','EQ','ZNR','MOD_DELAY','REV_DELAY','PATCH_LVL'];
-    const SLOT_LABELS: Record<string, string> = {
-      COMP_LIMIT: 'COMP/LIMIT', EFX: 'EFX', DRIVE: 'DRIVE',
-      EQ: 'EQ', ZNR: 'ZNR', MOD_DELAY: 'MOD/DELAY',
-      REV_DELAY: 'REV/DELAY', PATCH_LVL: 'PATCH LVL',
-    };
-
-    SLOT_ORDER.forEach(key => {
-      const val = modulos[key];
-      if (val === undefined) return;
-      const label = SLOT_LABELS[key] ?? key;
-
-      // ZNR y PATCH_LVL — número
-      if (typeof val === 'number') {
-        rows.push({ label, content: <span className="font-bold tabular-nums text-foreground">{val}</span> });
-        return;
-      }
-
-      // EQ
-      if (key === 'EQ' && val !== null && typeof val === 'object') {
-        rows.push({ label, content: <EQBars eq={val as Record<string, number>} /> });
-        return;
-      }
-
-      // Módulos con display/activo
-      if (val !== null && typeof val === 'object') {
-        const mod = val as Record<string, unknown>;
-        const isOff = mod.activo === false;
-
-        if (isOff) {
-          rows.push({ label, content: <span className="text-muted-foreground text-xs italic">— off —</span> });
-          return;
-        }
-
-        const display = mod.display as string | undefined;
-        const p1 = mod.P1 as number | undefined;
-        const p2 = mod.P2 as number | string | undefined;
-
-        const parsed = display ? parseDisplay(display) : null;
-        const efectoNombre = parsed?.nombre ?? (mod.algoritmo as string) ?? '';
-
-        rows.push({
-          label,
-          content: (
-            <div className="flex items-center gap-2 flex-wrap">
-              {display && (
-                <span className="font-black font-mono text-sm tracking-widest text-accent bg-accent/10 px-2 py-0.5 rounded">
-                  {display}
-                </span>
-              )}
-              {efectoNombre && (
-                <span className="text-xs text-muted-foreground">{efectoNombre}</span>
-              )}
-              {p1 !== undefined && (
-                <span className="text-xs text-foreground/80">
-                  {key === 'DRIVE' ? `Gain ${p1}` : `P1 ${p1}`}
-                </span>
-              )}
-              {p2 !== undefined && (
-                <span className="text-xs text-foreground/80">
-                  {key === 'DRIVE' ? `· Mix ${p2}` : key === 'MOD_DELAY' ? `· ${p2}` : `· ${p2}`}
-                </span>
-              )}
-            </div>
-          ),
-        });
-      }
+    // Iterar TODOS los slots presentes, en el orden que vienen
+    Object.entries(modulos).forEach(([key, val]) => {
+      const row = DynamicSlotRow({ slotKey: key, value: val });
+      if (row) rows.push(row);
     });
   } else if (gc && 'parametros' in gc && gc.parametros) {
-    // Renderizado genérico para equipos sin formato Zoom B1
-    const params = gc.parametros as Record<string, unknown>;
-    Object.entries(params).forEach(([k, v]) => {
-      if (v === undefined || v === null) return;
-      if (typeof v === 'object' && !Array.isArray(v)) {
-        const sub = v as Record<string, unknown>;
-        const estado = sub.estado as string | undefined;
-        const isOff = estado === 'OFF';
-        rows.push({
-          label: friendlyParam(k),
-          content: isOff
-            ? <span className="text-muted-foreground text-xs italic">— off —</span>
-            : (
-              <div className="flex items-center gap-1.5 flex-wrap">
-                {estado && <span className="text-[10px] font-bold bg-accent/20 text-accent px-1.5 py-0.5 rounded">{estado}</span>}
-                {sub.tipo != null && <span className="text-xs text-muted-foreground italic">{String(sub.tipo)}</span>}
-                {Object.entries(sub).filter(([ek]) => ek !== 'estado' && ek !== 'tipo').map(([ek, ev]) => (
-                  <span key={ek} className="text-xs text-foreground/80">{friendlyParam(ek)}: <strong>{String(ev)}</strong></span>
-                ))}
-              </div>
-            ),
-        });
-      } else {
-        rows.push({
-          label: friendlyParam(k),
-          content: <span className="font-bold tabular-nums text-foreground">{String(v)}</span>,
-        });
-      }
+    // Renderizado genérico para cualquier equipo
+    Object.entries(gc.parametros as Record<string, unknown>).forEach(([k, v]) => {
+      const row = DynamicSlotRow({ slotKey: k, value: v });
+      if (row) rows.push(row);
     });
   }
 
@@ -814,12 +916,12 @@ function PresetCard({ preset, idx }: { preset: PresetConfig; idx: number }) {
         </div>
       </div>
 
-      {/* Tabla de módulos */}
+      {/* Tabla de módulos — dinámico */}
       {rows.length > 0 && (
         <div className="divide-y divide-border/20">
           {rows.map((row, i) => (
             <div key={i} className="flex items-center justify-between px-4 py-2 gap-4">
-              <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground w-20 shrink-0">
+              <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground w-24 shrink-0">
                 {row.label}
               </span>
               <div className="flex-1 flex justify-end">{row.content}</div>
@@ -828,12 +930,21 @@ function PresetCard({ preset, idx }: { preset: PresetConfig; idx: number }) {
         </div>
       )}
 
-      {/* Explicación */}
-      {(preset.explicacion ?? preset.descripcion) && (
+      {/* System params */}
+      {preset.system_params && Object.keys(preset.system_params).length > 0 && (
+        <div className="px-3 py-2 border-t border-border/20">
+          <SystemParamsBlock params={preset.system_params} />
+        </div>
+      )}
+
+      {/* Explicación / Notas */}
+      {(preset.explicacion ?? preset.descripcion ?? preset.notas) && (
         <div className="px-4 py-3 border-t border-border/30 bg-black/20">
           <p className="text-xs text-muted-foreground leading-relaxed">
-            <span className="font-semibold text-foreground">{preset.efecto_principal ?? preset.etiqueta}: </span>
-            {preset.explicacion ?? preset.descripcion}
+            {preset.efecto_principal && (
+              <span className="font-semibold text-foreground">{preset.efecto_principal}: </span>
+            )}
+            {preset.explicacion ?? preset.descripcion ?? preset.notas}
           </p>
         </div>
       )}
@@ -883,15 +994,7 @@ export default function WizardApp() {
   const [selectedGearIds, setSelectedGearIds] = useState<string[]>([]);
 
   // Paso 3 — datos de investigación de tono
-  const [toneResearchData, setToneResearchData] = useState<{
-    equipment: Array<{ nombre: string; tipo: string; posicion?: string }>;
-    cadenaSenal?: string[];
-    amplificador?: { marca?: string; modelo?: string; configuracion?: string };
-    techniques: string[];
-    notes: string;
-    nivelDistorsion?: string;
-    esTocadoLimpio?: boolean;
-  } | null>(null);
+  const [toneResearchData, setToneResearchData] = useState<ToneResearch | null>(null);
 
   // Paso 2 — formulario de nuevo equipo
   const [showAddForm, setShowAddForm] = useState(false);
@@ -1049,7 +1152,7 @@ export default function WizardApp() {
       }
 
       if (result.toneResearch) {
-        setToneResearchData(result.toneResearch as typeof toneResearchData);
+        setToneResearchData(result.toneResearch as ToneResearch);
       }
 
       setSongDbId(result.songDbId);
@@ -1651,8 +1754,15 @@ export default function WizardApp() {
                 </section>
               )}
 
-              {/* ── 4. Cronograma de la canción ── */}
-              {generatedPresets.presetsData.length > 0 && (
+              {/* ── 4. Estructura de la canción (desde toneResearch) ── */}
+              {toneResearchData?.estructura && toneResearchData.estructura.length > 0 && (
+                <section className="p-4 bg-card/50 border border-border/50 rounded-xl">
+                  <SongStructure estructura={toneResearchData.estructura} />
+                </section>
+              )}
+
+              {/* ── 4b. Timeline de presets (fallback si no hay estructura) ── */}
+              {(!toneResearchData?.estructura || toneResearchData.estructura.length === 0) && generatedPresets.presetsData.length > 0 && (
                 <section className="p-4 bg-card/50 border border-border/50 rounded-xl">
                   <SongTimeline presets={generatedPresets.presetsData} />
                 </section>

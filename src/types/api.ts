@@ -93,6 +93,10 @@ export interface PresetConfig {
   configuracion: Array<GearConfig | GearConfigProcessador>;
   nota_tecnica?: string;
   consejos?: string[];
+  /** Parámetros globales del sistema (Output Mode, Noise Reduction, etc.) */
+  system_params?: Record<string, unknown>;
+  /** Notas del preset generado */
+  notas?: string;
 }
 
 export interface IPreset {
@@ -112,6 +116,28 @@ export interface IPreset {
   updatedAt: Date;
 }
 
+export interface SongEstructuraSection {
+  seccion: string;
+  dinamica?: string;
+  nivel_distorsion?: string;
+  efectos_clave?: string[];
+  tecnica?: string;
+}
+
+export interface ToneResearch {
+  equipment: Array<{ nombre: string; tipo: string; posicion?: string }>;
+  cadenaSenal?: string[];
+  amplificador?: { marca?: string; modelo?: string; configuracion?: string };
+  guitarra?: { marca?: string; modelo?: string; pastillas?: string };
+  techniques: string[];
+  notes: string;
+  nivelDistorsion?: string;
+  esTocadoLimpio?: boolean;
+  descripcion_tono?: string;
+  tecnica?: string;
+  estructura?: SongEstructuraSection[];
+}
+
 export interface ISong {
   _id?: string;
   musicBrainzId: string;
@@ -119,6 +145,7 @@ export interface ISong {
   artist: string;
   releaseDate?: string;
   coverUrl?: string;
+  toneResearch?: ToneResearch;
 }
 
 export interface ISearchHistory {

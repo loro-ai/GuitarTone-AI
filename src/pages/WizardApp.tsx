@@ -1012,6 +1012,59 @@ function PresetCard({ preset, idx }: { preset: PresetConfig; idx: number }) {
   );
 }
 
+// ─── AMP BASE Card — configuración global AMP + CAB + NS ─────────────────────
+function AmpBaseCard({ ampGlobal }: { ampGlobal: Record<string, { algoritmo: string; P1?: number; P2?: number; P3?: number; P4?: number }> }) {
+  const slots = Object.entries(ampGlobal);
+  if (slots.length === 0) return null;
+
+  return (
+    <div className="rounded-xl border overflow-hidden border-orange-500/25 bg-gradient-to-b from-orange-950/50 via-orange-900/20 to-transparent">
+      <div className="px-4 pt-3 pb-2.5 border-b border-white/[0.06]">
+        <div className="flex items-center gap-2">
+          <Speaker className="w-3.5 h-3.5 text-orange-400" />
+          <span className="text-[10px] px-2 py-0.5 rounded font-bold uppercase tracking-widest border bg-orange-500/20 text-orange-300 border-orange-500/30">
+            AMP BASE
+          </span>
+          <span className="text-[11px] text-muted-foreground ml-auto">Global · Todos los presets</span>
+        </div>
+      </div>
+      <div className="divide-y divide-white/[0.04]">
+        {slots.map(([slotKey, slotData]) => {
+          const algo = slotData.algoritmo || '—';
+          const META = new Set(['algoritmo']);
+          const params = Object.entries(slotData)
+            .filter(([k]) => !META.has(k))
+            .filter(([, v]) => v !== null && v !== undefined && v !== 0);
+
+          return (
+            <div key={slotKey}>
+              <div className="flex items-center gap-2 px-4 py-1.5 bg-white/[0.02]">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground w-20 shrink-0">
+                  {slotKey}
+                </span>
+                <span className="text-xs font-semibold text-foreground">{algo}</span>
+                <span className="ml-auto px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-500/15 text-emerald-400">ON</span>
+              </div>
+              {params.length > 0 && (
+                <div className="px-4 py-1.5 space-y-0.5">
+                  {params.map(([k, v]) => (
+                    <div key={k} className="flex items-center justify-between text-[11px]">
+                      <span className="text-muted-foreground uppercase tracking-wide text-[10px]">
+                        {getParamName(algo, k)}
+                      </span>
+                      <span className="font-bold tabular-nums text-foreground">{safeValueString(v)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export default function WizardApp() {
   const { user, logout } = useAuth({ redirectOnUnauthenticated: true, redirectPath: '/' });
   const [, navigate] = useLocation();
@@ -1054,6 +1107,9 @@ export default function WizardApp() {
     presetsData: PresetConfig[];
     advertencia?: string;
   } | null>(null);
+
+  // AMP preset global (AMP + CAB + NS compartidos entre todos los presets)
+  const [ampPresetGlobal, setAmpPresetGlobal] = useState<Record<string, { algoritmo: string; P1?: number; P2?: number; P3?: number; P4?: number }> | null>(null);
 
   // ─── Queries y mutations ──────────────────────────────────────────────────
 
@@ -1212,6 +1268,12 @@ export default function WizardApp() {
         advertencia: result.preset.advertencia,
       });
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const resultAny = result as any;
+      if (resultAny.ampPresetGlobal) {
+        setAmpPresetGlobal(resultAny.ampPresetGlobal as Record<string, { algoritmo: string; P1?: number; P2?: number; P3?: number; P4?: number }>);
+      }
+
       setStep(4);
       toast.success("¡Presets generados exitosamente!");
 
@@ -1232,6 +1294,7 @@ export default function WizardApp() {
     setSongDbId("");
     setSelectedGearIds([]);
     setGeneratedPresets(null);
+    setAmpPresetGlobal(null);
     setToneResearchData(null);
   };
 
@@ -1817,7 +1880,17 @@ export default function WizardApp() {
                 </section>
               )}
 
-              {/* ── 5. Presets por sección ── */}
+              {/* ── 5a. AMP BASE (global) ── */}
+              {ampPresetGlobal && (
+                <section className="space-y-2">
+                  <h3 className="text-xs font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-1.5">
+                    <Speaker className="w-3.5 h-3.5" /> Configuración AMP Base
+                  </h3>
+                  <AmpBaseCard ampGlobal={ampPresetGlobal} />
+                </section>
+              )}
+
+              {/* ── 5b. Presets por sección ── */}
               {generatedPresets.presetsData.length > 0 ? (
                 <section className="space-y-4">
                   <h3 className="text-xs font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-1.5">

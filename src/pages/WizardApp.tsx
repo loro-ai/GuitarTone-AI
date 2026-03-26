@@ -956,9 +956,24 @@ const PARAM_NAMES: Record<string, Record<string, string>> = {
   "ZNR":         { P1: "THRESH", P2: "DECAY" },
   // Slow Attack
   "SlowAttack":  { P1: "TIME", P2: "CURVE" },
+  // PROC_001 (Zoom B1) — real param names
+  "EQ 3-Band":   { lo: "BASS (70Hz)", mid: "MID (450Hz)", hi: "TREBLE (3kHz)" },
 };
 
-function getParamName(algoritmo: string, paramKey: string): string {
+// PROC_001 param display names by slot (used when algo is a short code like "TS", "C5")
+const PROC001_PARAM_DISPLAY: Record<string, Record<string, string>> = {
+  DRIVE:      { gain: 'GAIN', mix: 'MIX' },
+  COMP_LIMIT: { tipo: 'TIPO', nivel: 'NIVEL' },
+  EFX:        { nivel: 'NIVEL' },
+  EQ:         { lo: 'BASS (70Hz)', mid: 'MID (450Hz)', hi: 'TREBLE (3kHz)' },
+  ZNR_AMP:    { tipo: 'TIPO', nivel: 'NIVEL' },
+  MOD_DELAY:  { nivel: 'MIX', param2: 'RATE/TIME' },
+  REV_DELAY:  { nivel: 'MIX', param2: 'DECAY/TIME' },
+};
+
+function getParamName(algoritmo: string, paramKey: string, slot?: string): string {
+  // Check slot-based PROC_001 params first
+  if (slot && PROC001_PARAM_DISPLAY[slot]?.[paramKey]) return PROC001_PARAM_DISPLAY[slot][paramKey];
   const map = PARAM_NAMES[algoritmo];
   if (map && map[paramKey]) return map[paramKey];
   return paramKey;
@@ -977,16 +992,51 @@ function getSlotDisplay(slot: string): string {
 
 // ─── Friendly algo name (remove internal codes) ──────────────────────────────
 const ALGO_FRIENDLY: Record<string, string> = {
+  // PROC_004 (generic)
   'ORG GRPH': 'Graphic EQ (Orange)', 'RECT ORG': 'Mesa Rectifier',
   'MS 800': 'Marshall JCM800', 'FD TWIN': 'Fender Twin',
   'UK 30A': 'Vox AC30', 'BG DRIVE': 'Bogner Drive',
   'DZ DRV': 'Diezel Drive', 'GoldDRV': 'Gold Drive (Klon)',
   'TS Drive': 'Tube Screamer', 'CE-CHORUS': 'Boss CE Chorus',
   'THE VIBE': 'Uni-Vibe',
+  // PROC_001 DRIVE (Zoom B1)
+  'AG': 'Ampeg SVT', 'SB': 'Super Bass', 'SW': 'SWR SM-900',
+  'AC': 'Acoustic 360', 'BM': 'Bassman', 'HA': 'Hartke HA3500',
+  'TE': 'Trace Elliot', 'TU': 'Tube Pre', 'SA': 'SansAmp',
+  'TS': 'Tube Screamer', 'OD': 'ODB-3', 'DS': 'MXR Bass DI+',
+  'FF': 'Fuzz Face', 'MS': 'Mono Synth',
+  // PROC_001 EQ
+  'EQ 3-Band': 'EQ 3 Bandas',
 };
 
-function getAlgoDisplay(algo: string): string {
-  return ALGO_FRIENDLY[algo] || algo;
+// PROC_001 letter-code → name mappers
+const PROC001_EFX_CODES: Record<string, string> = {
+  A: 'Auto Wah', F: 'Res. Filter', O: 'Octave', T: 'Tremolo',
+  P: 'Phaser', R: 'Ring Mod', D: 'Defret', S: 'Slow Attack', V: 'Pedal Vox',
+};
+const PROC001_MOD_CODES: Record<string, string> = {
+  C: 'Chorus', E: 'Ensemble', F: 'Flanger', S: 'Step', M: 'Pitch Shift',
+  H: 'HPS', V: 'Vibrato', B: 'Pitch Bend', N: 'Detune', D: 'Delay', T: 'Tape Echo',
+};
+const PROC001_REV_CODES: Record<string, string> = {
+  D: 'Delay', T: 'Tape Echo', A: 'Analog Delay', P: 'Ping Pong',
+  H: 'Hall', R: 'Room', S: 'Spring',
+};
+
+function getAlgoDisplay(algo: string, slot?: string): string {
+  if (ALGO_FRIENDLY[algo]) return ALGO_FRIENDLY[algo];
+  // PROC_001: decode letter+digit formats based on slot context
+  const m = algo.match(/^([A-Z])(\d)$/i);
+  if (m) {
+    const letter = m[1].toUpperCase();
+    const level = m[2];
+    if (slot === 'COMP_LIMIT') return `${letter === 'C' ? 'Comp' : 'Limiter'} ${level}`;
+    if (slot === 'EFX') return `${PROC001_EFX_CODES[letter] || letter} ${level}`;
+    if (slot === 'MOD_DELAY') return `${PROC001_MOD_CODES[letter] || letter} ${level}`;
+    if (slot === 'REV_DELAY') return `${PROC001_REV_CODES[letter] || letter} ${level}`;
+    if (slot === 'ZNR_AMP') return letter === 'A' ? `AMP+ZNR ${level}` : `ZNR ${algo}`;
+  }
+  return algo;
 }
 
 // ─── Preset Card — bloques verticales por módulo (formato.png) ──────────────
@@ -1040,9 +1090,9 @@ function PresetCard({ preset, idx }: { preset: PresetConfig; idx: number }) {
           {modulosArray.map((mod, i) => {
             const isOff = mod.estado?.toLowerCase() === 'off' || mod.algoritmo?.toLowerCase() === 'off';
             const algoRaw = mod.algoritmo || '';
-            const algoDisplay = isOff ? '' : getAlgoDisplay(algoRaw);
+            const algoDisplay = isOff ? '' : getAlgoDisplay(algoRaw, mod.slot);
             const slotDisplay = getSlotDisplay(mod.slot);
-            const META = new Set(['estado', 'activo', 'algoritmo', 'tipo', 'display', 'value']);
+            const META = new Set(['estado', 'activo', 'algoritmo', 'tipo', 'display', 'value', 'nombre']);
             const params = Object.entries(mod.parametros || {})
               .filter(([k]) => !META.has(k))
               .filter(([, v]) => v !== null && v !== undefined && v !== 0 && v !== '');
@@ -1077,7 +1127,7 @@ function PresetCard({ preset, idx }: { preset: PresetConfig; idx: number }) {
                     {params.map(([k, v]) => (
                       <div key={k} className="flex items-center justify-between text-[11px]">
                         <span className="text-muted-foreground uppercase tracking-wide text-[10px]">
-                          {getParamName(algoRaw, k)}
+                          {getParamName(algoRaw, k, mod.slot)}
                         </span>
                         <span className="font-bold tabular-nums text-foreground">{safeValueString(v)}</span>
                       </div>
@@ -1087,6 +1137,14 @@ function PresetCard({ preset, idx }: { preset: PresetConfig; idx: number }) {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Patch Level */}
+      {(preset as unknown as Record<string, unknown>).patch_level != null && (
+        <div className="flex items-center justify-between px-4 py-2 border-t border-violet-500/15 bg-violet-950/15">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-violet-400/80">PATCH LEVEL</span>
+          <span className="text-sm font-bold tabular-nums text-violet-300">{String((preset as unknown as Record<string, unknown>).patch_level)}</span>
         </div>
       )}
 
